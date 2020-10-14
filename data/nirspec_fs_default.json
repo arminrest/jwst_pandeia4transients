@@ -1,0 +1,98 @@
+{
+    "background_level": {
+        "bg_type": "medium",
+        "dec": 0,
+        "ra": 0,
+        "ra_dec_str": "0:00:00.00 0:00:00.00"
+    },
+    "calculation": {
+        "effects": {
+            "background": true,
+            "ipc": true,
+            "saturation": true
+        },
+        "noise": {
+            "crs": true,
+            "darkcurrent": true,
+            "ffnoise": true,
+            "readnoise": true,
+            "rn_correlation": true
+        }
+    },
+    "configuration": {
+        "detector": {
+            "nexp": 3,
+            "ngroup": 30,
+            "nint": 1,
+            "readmode": "nrsirs2rapid",
+            "subarray": "full"
+        },
+        "dynamic_scene": false,
+        "instrument": {
+            "aperture": "s200a1",
+            "disperser": "prism",
+            "filter": "clear",
+            "instrument": "nirspec",
+            "mode": "fixed_slit",
+            "readmode": "nrsirs2rapid"
+        }
+    },
+    "scene":
+    [
+        {
+            "position": {
+                "orientation": 0.0,
+                "position_parameters": [
+                    "x_offset",
+                    "y_offset",
+                    "orientation"
+                ],
+                "x_offset": 0.0,
+                "y_offset": 0.0
+            },
+            "shape": {
+                "geometry": "point"
+            },
+            "spectrum": {
+                "extinction": {
+                    "bandpass": "v",
+                    "law": "mw_rv_31",
+                    "unit": "mag",
+                    "value": 0.0
+                },
+                "lines": [],
+                "name": "generic source",
+                "normalization": {
+                    "bandpass": "nircam,sw_imaging,f115w",
+                    "norm_flux": 21,
+                    "norm_fluxunit": "abmag",
+                    "type": "jwst"
+                },
+                "redshift": 0.0,
+                "sed": {
+                    "sed_type": "input"
+                },
+                "spectrum_parameters": [
+                    "redshift",
+                    "normalization",
+                    "extinction",
+                    "sed"
+                ]
+            }
+        }
+    ],
+    "strategy": {
+        "aperture_size": 0.15,
+        "display_string": "Aperture Spectral Extraction",
+        "method": "specapphot",
+        "background_subtraction": true,
+        "reference_wavelength": 2.95,
+        "target_source": 1,
+        "target_type": "",
+        "target_xy": [
+            0,
+            0
+        ],
+        "units": "arcsec"
+    }
+}
