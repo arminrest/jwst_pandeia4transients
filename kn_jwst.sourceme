@@ -1,0 +1,25 @@
+if [[ $HOSTNAME =~ arminmac* ]]; then
+   export ATLASLC_SOURCEDIR=/Users/arest/atlas/atlaslc
+   export ATLASLC_DATA=/Users/arest/atlas/lcdata
+   export PIPE_BATCH_SYSTEM=NONE
+elif [[ $HOSTNAME =~ plhstproc1.stsci.edu ]] || [[ $HOSTNAME =~ plhstproc2.stsci.edu ]]; then
+   export PIPE_BATCH_SYSTEM=Condor
+elif [[ $HOSTNAME =~ ^PHA-AREST1* ]]; then
+   export ATLASLC_SOURCEDIR=/Users/AdminDelete/Desktop/Supernovae/atlaslc
+   export ATLASLC_DATA=/Users/AdminDelete/Desktop/Supernovae/data
+   export PIPE_BATCH_SYSTEM=NONE
+elif [[ $HOSTNAME =~ example_hostname ]]; then
+   export ATLASLC_SOURCEDIR=/example/atlaslc
+   export ATLASLC_DATA=/example/data
+   export PIPE_BATCH_SYSTEM=NONE
+else
+   echo "Hostname $HOSTNAME is not defined yet in the sourceme file!"
+   return 1;
+fi
+
+export PATH="${ATLASLC_SOURCEDIR}:${PATH}:."
+
+export PS1="\u@\h(atlaslc)% "
+
+alias cdsrc='cd $ATLASLC_SOURCEDIR'
+alias cddata='cd $ATLASLC_DATA'
