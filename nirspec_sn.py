@@ -18,6 +18,10 @@ class NIRSpec_SN(object):
     NIRSpec observations. Numerous options are available for readout mode, grating, filter,
     and observing mode.
 
+    Important:
+        ref_wave must be provided, wavelength the SN is calculated at
+        a spectrum must be provided.
+
     Note:
         The spectrum input units should be microns for wavelength and mJy for flux.
         The normalising magnitude is as measured by NIRCam with mode = sw_imaging filter = f115w
@@ -49,8 +53,9 @@ class NIRSpec_SN(object):
 
 
     """
-    def __init__(self,grating='prism',filt='clear',
-                 read_mode='nrsirs2rapid',mode='fixed_slit',spectrum = None,exptime=None):
+    def __init__(self,ref_wave=None,grating='prism',filt='clear',
+                 read_mode='nrsirs2rapid',mode='fixed_slit',
+                 spectrum = None,exptime=None):
         self.grating = grating.lower() # grating name
         self.Check_grating()
         self.filter = filt # filter name
@@ -63,6 +68,8 @@ class NIRSpec_SN(object):
         self.imgr_data = None 
         self.mag = None
         self.SN = None # signal to nosie 
+        self.ref_wave = ref_wave
+
         if spectrum is not None:
             self.wave = spectrum[0,:]
             self.flux = spectrum[1,:]
@@ -81,7 +88,7 @@ class NIRSpec_SN(object):
                 return 
         message = ('No such grating available, please choose from:\n'
                    + 'prism\n g140h\n g140m\n g235h\n g235m\n g395h\n g395m')
-        raise ValueError(mesage)
+        raise(ValueError, mesage)
         
     def Check_filter(self):
         """
@@ -94,7 +101,7 @@ class NIRSpec_SN(object):
                 return 
         message = ('No such filter available, please choose from:\n'
                    + 'clear\n f070lp\n f100lp\n f110w\n f140x\n f170lp\n f290lp')
-        raise ValueError(mesage)
+        raise(ValueError, mesage)
     
     def Check_read_mode(self):
         """
@@ -107,7 +114,7 @@ class NIRSpec_SN(object):
                 return 
         message = ('No such readout mode available, please choose from:\n'
                    + 'nrsrapid\n nrsrapidd6\n nrs\n nrsirs2rapid\n nrsirs2')
-        raise ValueError(message)
+        raise(ValueError, mesage)
     
     def Check_mode(self):
         """
@@ -119,7 +126,7 @@ class NIRSpec_SN(object):
                 return 
         message = ('No such mode available, please choose from:\n'
                    + 'fixed_slit\n ')
-        raise ValueError(message)
+        raise(ValueError, mesage)
 
     def Check_exposure_time(self):
         """
@@ -127,7 +134,7 @@ class NIRSpec_SN(object):
         """
         if self.exp_time is None:
             message = "Exposure time can't be None"
-            raise ValueError(message)
+            raise(ValueError, mesage)
         #if (type(self.exp_time) != float) & (type(self.exp_time) !=int):
         #   print(type(self.exp_time))
         #   message = "Exposure time must be either a float or int"
@@ -204,6 +211,8 @@ class NIRSpec_SN(object):
             message += 'Read mode must be defined\n'
         if self.wave is None:
             message += 'No spectrum provided\n'
+        if self.ref_wave is None:
+            message += 'No reference wavelength specified\n'
         if message != '':
             raise Warning(message)
         return
@@ -244,6 +253,7 @@ class NIRSpec_SN(object):
         imgr_data['configuration']['detector']['readout_pattern'] = self.read_mode
         
         imgr_data['scene'][0]['spectrum']['sed']['spectrum'] = [self.wave, self.flux]
+        imgr_data['strategy']['reference_wavelength'] = self.ref_wave
         if self.mag is not None:
             imgr_data['scene'][0]['spectrum']['normalization']['norm_flux'] = self.mag
         
