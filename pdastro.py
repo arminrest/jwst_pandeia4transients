@@ -266,7 +266,7 @@ class pdastroclass:
         
         # get the column names over which to iterate
         colnames=self.getcolnames(colnames)
-        
+        print(colnames)
         for colname in colnames:
             if not(lowlim is None):
                 if exclude_lowlim:

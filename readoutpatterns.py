@@ -37,10 +37,19 @@ class readoutpatternclass(pdastroclass):
     def __init__(self,instrument):
         pdastroclass.__init__(self)
         self.allowed_instruments = ['nircam','nirspec','miri']
-        self.instrument=instrument.lower()
+        self.loadtable(instrument)
+
+    def loadtable(self,instrument=None):
+        if not(instrument is None):
+            self.instrument = instrument.lower()
+        if self.instrument is None:
+            raise(RuntimeError,'An instrument needs to be specified!!')    
         if not (self.instrument in self.allowed_instruments):
             raise(RuntimeError,'instrument %s not in %s' % (self.instrument,' '.join(self.allowed_instruments)))    
+        
         self.t = pd.read_csv(io.StringIO(pattern2exptime[self.instrument]),delim_whitespace=True,skipinitialspace=True)
+        
+            
 
     def getinfo(self,index):
         if index == None:
