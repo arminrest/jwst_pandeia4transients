@@ -10,6 +10,14 @@ from scipy.optimize import minimize
 import numpy as np
 import warnings
 
+import pysynphot as S # 
+from extinction import fm07, fitzpatrick99, apply # https://pypi.org/project/extinction/
+
+from astropy import units as u
+from astropy.cosmology import WMAP9 as cosmo 
+from astropy.coordinates import Distance
+from astropy import units as u
+
 package_directory = os.path.dirname(os.path.abspath(__file__))
 
 class NIRSpec_SN(object):
@@ -17,6 +25,10 @@ class NIRSpec_SN(object):
     Wapper for the Pandeia engine to calculate the signal to noise and exposure times for 
     NIRSpec observations. Numerous options are available for readout mode, grating, filter,
     and observing mode.
+
+    Important:
+        ref_wave must be provided, wavelength the SN is calculated at
+        a spectrum must be provided.
 
     Note:
         The spectrum input units should be microns for wavelength and mJy for flux.
@@ -38,7 +50,7 @@ class NIRSpec_SN(object):
         template "nirspec_fs_default.json". 
 
         It needs a more efficient way to calculate the optimal setup in Calculate_exposure_for_SN(), 
-        currently it loops thorugh group values. Scipy minimize didn't work so well here.
+        currently it loops through group values. Scipy minimize didn't work so well here.
         
         Different NIRSpec observing modes. Currently only long_slit is implemented, need to find 
         documentation on the other modes and their calls in Pandeia.
@@ -49,8 +61,11 @@ class NIRSpec_SN(object):
 
 
     """
-    def __init__(self,grating='prism',filt='clear',
-                 read_mode='nrsirs2rapid',mode='fixed_slit',spectrum = None,exptime=None):
+    def __init__(self,ref_wave=None,av=None,dist=None,
+                 z=None,
+                 grating='prism',filt='clear',
+                 read_mode='nrsirs2rapid',mode='fixed_slit',
+                 spectrum = None,exptime=None):
         self.grating = grating.lower() # grating name
         self.Check_grating()
         self.filter = filt # filter name
@@ -63,6 +78,11 @@ class NIRSpec_SN(object):
         self.imgr_data = None 
         self.mag = None
         self.SN = None # signal to nosie 
+        self.ref_wave = ref_wave # reference wavelength in mirons
+        self.av = av # v band extinction
+        self.dist = dist
+        self.z = z
+
         if spectrum is not None:
             self.wave = spectrum[0,:]
             self.flux = spectrum[1,:]
@@ -81,7 +101,7 @@ class NIRSpec_SN(object):
                 return 
         message = ('No such grating available, please choose from:\n'
                    + 'prism\n g140h\n g140m\n g235h\n g235m\n g395h\n g395m')
-        raise ValueError(mesage)
+        raise(ValueError, mesage)
         
     def Check_filter(self):
         """
@@ -94,7 +114,7 @@ class NIRSpec_SN(object):
                 return 
         message = ('No such filter available, please choose from:\n'
                    + 'clear\n f070lp\n f100lp\n f110w\n f140x\n f170lp\n f290lp')
-        raise ValueError(mesage)
+        raise(ValueError, mesage)
     
     def Check_read_mode(self):
         """
@@ -107,7 +127,7 @@ class NIRSpec_SN(object):
                 return 
         message = ('No such readout mode available, please choose from:\n'
                    + 'nrsrapid\n nrsrapidd6\n nrs\n nrsirs2rapid\n nrsirs2')
-        raise ValueError(message)
+        raise(ValueError, mesage)
     
     def Check_mode(self):
         """
@@ -119,7 +139,7 @@ class NIRSpec_SN(object):
                 return 
         message = ('No such mode available, please choose from:\n'
                    + 'fixed_slit\n ')
-        raise ValueError(message)
+        raise(ValueError, mesage)
 
     def Check_exposure_time(self):
         """
@@ -127,7 +147,7 @@ class NIRSpec_SN(object):
         """
         if self.exp_time is None:
             message = "Exposure time can't be None"
-            raise ValueError(message)
+            raise(ValueError, mesage)
         #if (type(self.exp_time) != float) & (type(self.exp_time) !=int):
         #   print(type(self.exp_time))
         #   message = "Exposure time must be either a float or int"
@@ -204,6 +224,8 @@ class NIRSpec_SN(object):
             message += 'Read mode must be defined\n'
         if self.wave is None:
             message += 'No spectrum provided\n'
+        if self.ref_wave is None:
+            message += 'No reference wavelength specified (ref_wave = None)\n'
         if message != '':
             raise Warning(message)
         return
@@ -244,6 +266,7 @@ class NIRSpec_SN(object):
         imgr_data['configuration']['detector']['readout_pattern'] = self.read_mode
         
         imgr_data['scene'][0]['spectrum']['sed']['spectrum'] = [self.wave, self.flux]
+        imgr_data['strategy']['reference_wavelength'] = self.ref_wave
         if self.mag is not None:
             imgr_data['scene'][0]['spectrum']['normalization']['norm_flux'] = self.mag
         
@@ -386,3 +409,75 @@ class NIRSpec_SN(object):
             diff = target - sn
             g += 1
         return g, t
+
+    def Redden_spec(self,av=None):
+        """
+        Redden the input spectrum according to the fitzpatrick 99 relation and 
+        the visible band extinction.
+
+        Inputs
+        ------
+            av : float
+                v band extinction that is applied via teh Fitzpatric 99 model.
+        """
+        if av is not None:
+            self.av = av
+
+        if self.av is not None:
+            wav = self.wave * 1e4 # convert to Angstrom for extinction
+            red = apply(fitzpatrick99(wav.astype('double'),self.av,3.1),self.flux)
+            self.flux = red
+        return
+
+    def Distance_scale(self,dist=None,z=None):
+        """
+        Scales and redshifts the spectrum to the given distance/redshift.
+
+        Inputs
+        ------
+            dist : float
+                distance to the source in Mpc
+            z : float 
+                redshift to the source
+        """
+        if (dist is not None):
+            self.dist = dist
+            self.z = None
+        if z is not None:
+            self.z = z
+            self.dist = None
+
+        dt = self.dist is not None
+        zt = self.z is not None
+        if dt & zt:
+            warnings.warn('Both distance and redshift set, defaulting to redshift.')
+            dt = False
+        if dt & ~zt:
+            d = Distance(self.dist,unit=u.Mpc)
+            try:
+                self.z = d.compute_z(cosmo)
+            except:
+                self.z = 0 
+
+        elif zt & ~dt:
+            self.dist = cosmo.luminosity_distance(self.z).to(u.Mpc).value
+
+        if self.dist > 0:
+            self.flux = self.flux * (10/(self.dist*1e6))**2 # original spectral distance 10pc
+
+
+            spec = S.ArraySpectrum(self.wave, self.flux, waveunits='micron',fluxunits='mjy')
+            spec = spec.redshift(self.z)
+
+            spec.convert('micron')
+            spec.convert('mjy')
+
+            self.wave = spec.wave
+            self.flux = spec.flux
+
+        return
+
+
+
+
+
