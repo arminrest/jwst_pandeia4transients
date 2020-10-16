@@ -3,6 +3,10 @@
 Created on Fri Oct 16 18:44:27 2020
 
 @author: arest
+
+some definitions based on Dan Coe's jupyter notebooks:
+    https://github.com/dancoe/pandeia-imaging/blob/master/depth/NIRCam%20Imaging%20Depth.ipynb
+
 """
 
 import numpy as np
