@@ -10,6 +10,14 @@ from scipy.optimize import minimize
 import numpy as np
 import warnings
 
+import pysynphot as S # 
+from extinction import fm07, fitzpatrick99, apply # https://pypi.org/project/extinction/
+
+from astropy import units as u
+from astropy.cosmology import WMAP9 as cosmo 
+from astropy.coordinates import Distance
+from astropy import units as u
+
 package_directory = os.path.dirname(os.path.abspath(__file__))
 
 class NIRSpec_SN(object):
@@ -42,7 +50,7 @@ class NIRSpec_SN(object):
         template "nirspec_fs_default.json". 
 
         It needs a more efficient way to calculate the optimal setup in Calculate_exposure_for_SN(), 
-        currently it loops thorugh group values. Scipy minimize didn't work so well here.
+        currently it loops through group values. Scipy minimize didn't work so well here.
         
         Different NIRSpec observing modes. Currently only long_slit is implemented, need to find 
         documentation on the other modes and their calls in Pandeia.
@@ -53,7 +61,9 @@ class NIRSpec_SN(object):
 
 
     """
-    def __init__(self,ref_wave=None,grating='prism',filt='clear',
+    def __init__(self,ref_wave=None,av=None,dist=None,
+                 z=None,
+                 grating='prism',filt='clear',
                  read_mode='nrsirs2rapid',mode='fixed_slit',
                  spectrum = None,exptime=None):
         self.grating = grating.lower() # grating name
@@ -68,7 +78,10 @@ class NIRSpec_SN(object):
         self.imgr_data = None 
         self.mag = None
         self.SN = None # signal to nosie 
-        self.ref_wave = ref_wave
+        self.ref_wave = ref_wave # reference wavelength in mirons
+        self.av = av # v band extinction
+        self.dist = dist
+        self.z = z
 
         if spectrum is not None:
             self.wave = spectrum[0,:]
@@ -212,7 +225,7 @@ class NIRSpec_SN(object):
         if self.wave is None:
             message += 'No spectrum provided\n'
         if self.ref_wave is None:
-            message += 'No reference wavelength specified\n'
+            message += 'No reference wavelength specified (ref_wave = None)\n'
         if message != '':
             raise Warning(message)
         return
@@ -396,3 +409,64 @@ class NIRSpec_SN(object):
             diff = target - sn
             g += 1
         return g, t
+
+    def Redden_spec(self,av=None):
+        """
+        Redden the input spectrum according to the fitzpatrick 99 relation and 
+        the visible band extinction.
+        """
+        if av is not None:
+            self.av = av
+
+        if self.av is not None:
+            wav = self.wave * 1e4 # convert to Angstrom for extinction
+            red = apply(fitzpatrick99(wav.astype('double'),self.av,3.1),self.flux)
+            self.flux = red
+        return
+
+    def Distance_scale(self,dist=None,z=None):
+        """
+        Scales and redshifts the spectrum to the given distance/redshift.
+        """
+        if (dist is not None):
+            self.dist = dist
+            self.z = None
+        if z is not None:
+            self.z = z
+            self.dist = None
+
+        dt = self.dist is not None
+        zt = self.z is not None
+        if dt & zt:
+            warnings.warn('Both distance and redshift set, defaulting to redshift.')
+            dt = False
+        if dt & ~zt:
+            d = Distance(self.dist,unit=u.Mpc)
+            try:
+                self.z = d.compute_z(cosmo)
+            except:
+                self.z = 0 
+
+        elif zt & ~dt:
+            self.dist = cosmo.luminosity_distance(self.z).to(u.Mpc).value
+
+        if self.dist > 0:
+            self.flux = self.flux * (10/(self.dist*1e6))**2 # original spectral distance 10pc
+
+
+            spec = S.ArraySpectrum(self.wave, self.flux, waveunits='micron',fluxunits='mjy')
+
+            spec = spec.redshift(self.z)
+
+            spec.convert('micron')
+            spec.convert('mJy')
+
+            self.wave = spec.wave
+            self.flux = spec.flux
+
+        return
+
+
+
+
+
