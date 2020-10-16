@@ -414,6 +414,11 @@ class NIRSpec_SN(object):
         """
         Redden the input spectrum according to the fitzpatrick 99 relation and 
         the visible band extinction.
+
+        Inputs
+        ------
+            av : float
+                v band extinction that is applied via teh Fitzpatric 99 model.
         """
         if av is not None:
             self.av = av
@@ -427,6 +432,13 @@ class NIRSpec_SN(object):
     def Distance_scale(self,dist=None,z=None):
         """
         Scales and redshifts the spectrum to the given distance/redshift.
+
+        Inputs
+        ------
+            dist : float
+                distance to the source in Mpc
+            z : float 
+                redshift to the source
         """
         if (dist is not None):
             self.dist = dist
@@ -455,11 +467,10 @@ class NIRSpec_SN(object):
 
 
             spec = S.ArraySpectrum(self.wave, self.flux, waveunits='micron',fluxunits='mjy')
-
             spec = spec.redshift(self.z)
 
             spec.convert('micron')
-            spec.convert('mJy')
+            spec.convert('mjy')
 
             self.wave = spec.wave
             self.flux = spec.flux
