@@ -258,6 +258,18 @@ class pdastroclass:
             #print('YYY',notnull)
         return(indices)
 
+    def ix_equal(self,colnames,val,indices=None):
+        # get the indices based on input.
+        indices=self.getindices(indices)
+        
+        # get the column names over which to iterate
+        colnames=self.getcolnames(colnames)
+        for colname in colnames:
+            (keep,) = np.where(self.t.loc[indices,colname].eq(val))
+            indices = indices[keep]
+            
+        return(indices)
+        
     def ix_inrange(self,colnames=None,lowlim=None,uplim=None,indices=None,
                    exclude_lowlim=False,exclude_uplim=False):
 
