@@ -84,8 +84,31 @@ class background4jwstclass(pdastroclass):
             raise RuntimeError("The specified wavelength of %f is not int the list of wavelenghts from the background: " % (self.lam4percentile))
 
         return(index4percentile[0])
+    
+    def bkgcolname(self,percentile):
+        bkgcolname = '%s_%02d' % (self.bgname,round(percentile))
+        return(bkgcolname)
         
     def get_background4percentiles(self,percentilelist,lam4percentile=None):
+        """
+        
+        This routine saves the background fluxes (type of self.bgname, e.g., 'total_bg') 
+        for a list of percentiles. The flux is saved in the table with column names self.bgname+'_%d' where %d 
+        is the integer value of the percentile, e.g., 'total_bg_50' for 50 percentile 
+        of total background flux
+        
+        Parameters
+        ----------
+        percentilelist : list or tuple
+            list or tuple of percentiles.
+        lam4percentile : float, optional
+            wavelength for which the percentiles are calculated. The default is None.
+
+        Returns
+        -------
+        None.
+
+        """
         # make sure it is a list
         if isinstance(percentilelist,float) or isinstance(percentilelist,int):percentilelist=[percentilelist]
         
@@ -122,11 +145,14 @@ class background4jwstclass(pdastroclass):
             bkg_vs_lam = self.bkg.bkg_data[self.bgname][ibkg_day]
             
             # Save the flux in the table with the percentile in the column name
-            bkgcolname = '%s_%02d' % (self.bgname,percentile)
+            bkgcolname = self.bkgcolname(percentile)
             self.t[bkgcolname]=bkg_vs_lam
             
         return(0)
-
+    
+    def get_lam_bkg4ETC(self,percentile):
+        bkgcolname = self.bkgcolname(percentile)
+        return(np.array(background4jwst.t['lam']),np.array(background4jwst.t[bkgcolname]))
 
 if __name__ == '__main__':
     print('hello')
@@ -140,3 +166,10 @@ if __name__ == '__main__':
 
     background4jwst.get_background4percentiles([10.0,50.0,90.0],lam4percentile=4.5)
     background4jwst.write()
+    
+    # access the panda table directly ....
+    print(background4jwst.t['lam'])
+    print(background4jwst.t['total_bg_50'])
+    
+    # ... or get it as 2 arrays
+    print(background4jwst.get_lam_bkg4ETC(50))
