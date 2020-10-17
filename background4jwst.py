@@ -158,13 +158,18 @@ if __name__ == '__main__':
     print('hello')
     background4jwst=background4jwstclass()
     
+    # set the position for which the background will be calculated. set_position_by_name uses 
+    # pre-defined positions, set_position can be used to set any position
     background4jwst.set_position_by_name('ElGordo')
     
+    # Get the background from pandeia
     background4jwst.calc_background()
     #print(background4jwst.bkg.bkg_data['total_bg'][0])
     #print(background4jwst.bkg.bkg_data['wave_array'])
 
+    # calculate the backgrounds for the list of percentiles at the given wavelength
     background4jwst.get_background4percentiles([10.0,50.0,90.0],lam4percentile=4.5)
+    # write the table to the screen
     background4jwst.write()
     
     # access the panda table directly ....
