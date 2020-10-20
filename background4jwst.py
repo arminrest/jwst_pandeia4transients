@@ -14,7 +14,6 @@ import math,sys,socket,os,re
 from pdastro import pdastroclass
 from astropy import coordinates,units
 from jwst_backgrounds import jbt  # To calculate background
-import astropy.io.fits as pyfits  # To load background
 
 def RaInDeg(RA):
     s = re.compile('\:|\ ')
@@ -31,10 +30,7 @@ def DecInDeg(Dec):
 
 class background4jwstclass(pdastroclass):
     def __init__(self):
-        pdastroclass.__init__(self)
-        # percentiles used by ETC web interface: Low=10, Medium=50, High=90
-        self.percentile = 50.0
-        
+        pdastroclass.__init__(self)        
         # lambda in microns
         self.lam = 4.5
         self.thresh = 1.1
@@ -44,25 +40,25 @@ class background4jwstclass(pdastroclass):
         # This will contain the output of jbt=background4jwsts
         self.bkg = None
         
-        self.defaultpositions = {
+        self.defaulttargets = {
             "ElGordo":('01 02 55.2','-49 14 29.3'), # Low background example: El Gordo galaxy cluster ACT0102-49
             "EmptyERS":('03 32 42.397','-27 42 7.93') # well studied blank field in ERS
             }
         
-        self.set_position_by_name('ElGordo')
+        self.set_position_by_target('ElGordo')
         
         self.bgname = 'total_bg'
   
-    def set_position(self,ra,dec,name):
+    def set_position(self,ra,dec,target):
         self.ra = RaInDeg(ra)
         self.dec = DecInDeg(dec)
-        self.target = name
+        self.target = target
     
-    def set_position_by_name(self,name):
-        if not(name in self.defaultpositions):
-            print('default positions:',self.defaultpositions)
-            raise RuntimeError("%s could not be found in the default positions!" % name)
-        self.set_position(self.defaultpositions[name][0],self.defaultpositions[name][1],name)
+    def set_position_by_target(self,target):
+        if not(target in self.defaulttargets):
+            print('default positions:',self.defaulttargets)
+            raise RuntimeError("%s could not be found in the default positions!" % target)
+        self.set_position(self.defaulttargets[target][0],self.defaulttargets[target][1],target)
         
         
     def calc_background(self,lam=None,thresh=None):
@@ -102,7 +98,8 @@ class background4jwstclass(pdastroclass):
         percentilelist : list or tuple
             list or tuple of percentiles.
         lam4percentile : float, optional
-            wavelength for which the percentiles are calculated. The default is None.
+            wavelength in microns for which the percentiles are calculated. 
+            The default is None. If None, then self.lam4percentile is used as default
 
         Returns
         -------
@@ -150,17 +147,51 @@ class background4jwstclass(pdastroclass):
             
         return(0)
     
-    def get_lam_bkg4ETC(self,percentile):
+    def lambkg4ETC(self,percentile,lam=None,thresh=None,lam4percentile=None, target=None):
+        """
+        wrapper around all the calls to get the info (wavelength, bkg flux) for the ETC. 
+
+        Parameters
+        ----------
+        percentile : TYPE
+            DESCRIPTION.
+        lam : float, optional
+            Input wavelength for the pandeia 'background' routine. If None, the default value of self.lam is used
+        thresh : float, optional
+            Input threshold for the pandeia 'background' routine. If None, the default value of self.thresh is used
+        lam4percentile : float, optional
+            wavelength for which the percentiles are calculated for. If None, the default value of self.lam4percentile is used
+        target: string, optional
+            if specified, the RA,Dec is set to the target. target must be part of self.defaulttargets
+
+        Returns
+        -------
+        two numpy arrays: the first one are the wavelengths, and the second the bkg fluxes
+
+        """
+        # set the RA,Dec to the target if specified
+        if not(target is None):
+            self.set_position_by_target(target)
+        
+        # get the background from pandeia
+        self.calc_background(lam=lam,thresh=thresh)
+
+        # get teh background for the given percentile
+        self.get_background4percentiles([percentile],lam4percentile=lam4percentile)
+
+        # return the wavelength array and the background array        
         bkgcolname = self.bkgcolname(percentile)
-        return(np.array(background4jwst.t['lam']),np.array(background4jwst.t[bkgcolname]))
+        background = (np.array(self.t['lam']),np.array(self.t[bkgcolname]))
+        return(background)
+        
 
 if __name__ == '__main__':
     print('hello')
     background4jwst=background4jwstclass()
     
-    # set the position for which the background will be calculated. set_position_by_name uses 
+    # set the position for which the background will be calculated. set_position_by_target uses 
     # pre-defined positions, set_position can be used to set any position
-    background4jwst.set_position_by_name('ElGordo')
+    background4jwst.set_position_by_target('ElGordo')
     
     # Get the background from pandeia
     background4jwst.calc_background()
@@ -176,5 +207,6 @@ if __name__ == '__main__':
     print(background4jwst.t['lam'])
     print(background4jwst.t['total_bg_50'])
     
-    # ... or get it as 2 arrays
-    print(background4jwst.get_lam_bkg4ETC(50))
+    # ... or call everything and get wavelength and background flux as a tuple of 2 np.arrays for the ETC input
+    background = background4jwst.lambkg4ETC(50,target='EmptyERS')
+    print(background)

@@ -9,7 +9,7 @@ import io
 
 pattern2exptime = {}
 pattern2exptime['nircam'] = """
-Readout         NGROUPS NINT    tint    NEXP    texp
+Readout         NGROUP  NINT    tint    NEXP    texp
 RAPID           2       1       21.5    4       86.0
 BRIGHT2         2       1       42.9    4       171.8
 BRIGHT2         3       1       64.4    4       257.6
@@ -57,8 +57,8 @@ class readoutpatternclass(pdastroclass):
         if index == None:
             return(None)
         if self.instrument == 'nircam':
-            info = {'Readout':self.t.at[index,'Readout'],
-                    'NGROUPS':self.t.at[index,'NGROUPS'],
+            info = {'readout_pattern':self.t.at[index,'Readout'].lower(),
+                    'NGROUP':self.t.at[index,'NGROUP'],
                     'NINT':self.t.at[index,'NINT'],
                     'tint':self.t.at[index,'tint'],
                     'NEXP':self.t.at[index,'NEXP'],

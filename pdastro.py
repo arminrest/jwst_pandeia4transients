@@ -113,6 +113,9 @@ class pdastroclass:
 
         # make sure indices are converted into a valid list
         indices=self.getindices(indices)
+        
+        # make sure columns are converted into a valid list
+        columns=self.getcolnames(columns)
 
         # make the path to the file if necessary
         if not (filename is None):
@@ -278,7 +281,7 @@ class pdastroclass:
         
         # get the column names over which to iterate
         colnames=self.getcolnames(colnames)
-        print(colnames)
+        #print(colnames)
         for colname in colnames:
             if not(lowlim is None):
                 if exclude_lowlim:
