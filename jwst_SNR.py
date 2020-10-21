@@ -156,6 +156,8 @@ class jwst_SNRclass:
         return(0)
 
     def Imaging_SNR(self, filt, mag, exptime, lambkg4ETC=None):
+        
+        if self.verbose>2: print('filter:%s mag:%f, exptime:%f' % (filt, mag, exptime))
 
         if lambkg4ETC is None:
             lambkg4ETC=self.lambkg4ETC
@@ -190,11 +192,11 @@ class jwst_SNRclass:
         SNR = self.ETCresults['scalar']['sn']
         total_exposure_time = self.ETCresults['scalar']['total_exposure_time']
         
-        #print(SNR, total_exposure_time)
+        if self.verbose>1: print('filter:%s mag:%.2f, target exptime:%.1f  == SNR=%.2f exptime=%.1f' % (filt, mag, exptime,SNR))
         return(SNR,total_exposure_time)
 
     def texp4SNRatmag(self,filt,mag,SNR,lambkg4ETC=None,SNR_tolerance_in_percent=0.0):
-        print('#############################\n#### Filter %s, mag %.2f\n#############################' % (filt,mag))
+        print('#############################\n#### Filter %s, mag %.2f\n#############################' % (filt,mag,total_exposure_time))
 
         texp0=1000
         (SNR0, texp0) = self.Imaging_SNR(filt,mag,texp0,lambkg4ETC=lambkg4ETC)
@@ -305,7 +307,8 @@ if __name__ == '__main__':
     print(jwst_SNR.aperture_radii)
     print(jwst_SNR.sky_annulii)
     
+    jwst_SNR.verbose=1
     jwst_SNR.set_background4jwst(50,target='EmptyERS')
 
-    #jwst_SNR.Imaging_SNR_table(['F200W'],np.arange(28.0,29.0,0.5),1200)
+    jwst_SNR.Imaging_SNR_table(['F200W'],np.arange(28.0,29.0,0.5),1200)
     jwst_SNR.texp4SNRatmag('F200W',28.0,20.0)
