@@ -155,7 +155,7 @@ class jwst_SNRclass:
         self.lambkg4ETC = self.background4jwst.lambkg4ETC(percentile,**kwargs)
         return(0)
 
-    def Imaging_SNR(self,filt, mag, exptime, lambkg4ETC=None):
+    def Imaging_SNR(self, filt, mag, exptime, lambkg4ETC=None):
 
         if lambkg4ETC is None:
             lambkg4ETC=self.lambkg4ETC
@@ -184,20 +184,106 @@ class jwst_SNRclass:
         #print(info)
         for key in ['NEXP','NINT','NGROUP','readout_pattern']:
             self.pandeiacfg['configuration']['detector'][key.lower()] = info[key]
-            #self.pandeiacfg['configuration']['detector']['ngroup'] = info['NGROUPS']
-        #self.pandeiacfg['configuration']['detector']['nexp'] = 
-        #self.pandeiacfg['configuration']['detector']['nint'] = 
-        #self.pandeiacfg['configuration']['detector']['ngroup'] = 
-        #self.pandeiacfg['configuration']['detector']['readout_pattern'] = .lower()
-        
-    
-    
-        # RUN CALCULATION
+            
+        # calculate SNR with pandeia
         self.ETCresults = perform_calculation(self.pandeiacfg)  
         SNR = self.ETCresults['scalar']['sn']
         total_exposure_time = self.ETCresults['scalar']['total_exposure_time']
-        print(SNR, total_exposure_time)
-        return SNR, total_exposure_time
+        
+        #print(SNR, total_exposure_time)
+        return(SNR,total_exposure_time)
+
+    def texp4SNRatmag(self,filt,mag,SNR,lambkg4ETC=None,SNR_tolerance_in_percent=0.0):
+        print('#############################\n#### Filter %s, mag %.2f\n#############################' % (filt,mag))
+
+        texp0=1000
+        (SNR0, texp0) = self.Imaging_SNR(filt,mag,texp0,lambkg4ETC=lambkg4ETC)
+        print('SNR=%6.2f for starting texp=%6.1f' % (SNR0,texp0))
+      
+        # guesstimate the best exposure time. The SNR theoretically goes with sqrt(t), 
+        # thus t should go with SNR^2. However, it looks like the exponent is smaller than 2
+        texp_guess = texp0 * math.pow(SNR/SNR0,9/8)
+        print('texp guess:',texp_guess)
+        
+        tnext = self.readoutpattern.nextbiggestexptime(texp_guess)
+        if tnext is None:
+            tnext = self.readoutpattern.nextsmallestexptime(texp_guess)
+        if tnext is None:
+            raise RuntimeError("BUG??? Cannot find any exposure time...")
+            
+            
+        (SNRnext,tnext) = self.Imaging_SNR(filt,mag,tnext,lambkg4ETC=lambkg4ETC)        
+        print('SNR=%6.2f for next texp=%6.1f' % (SNRnext,tnext))
+        
+        (tlast,SNRlast)=(tnext,SNRnext)
+        if SNRnext<=SNR:
+            while (SNRnext<SNR):
+                print('SNR=%6.2f for texp=%6.1f, SNR=%.2f wanted...' % (SNRnext,tnext,SNR))
+                  
+                (tlast,SNRlast)=(tnext,SNRnext)
+                 
+                # get the next bigger exposure time
+                tnext = self.readoutpattern.nextbiggestexptime(tnext+1.0)
+                
+                # If this is the last index of the readoutpattern, and the SNR is still not big enough, return None and the last SNR possible
+                if (tnext is None):
+                    SNRnext=None
+                    print('Warning: could not find an exposure time that is long enough to reach SNR=%.2f, only %.2f' % (SNR,SNRlast))
+                    break
+
+                (SNRnext,tnext) = self.Imaging_SNR(filt,mag,tnext,lambkg4ETC=lambkg4ETC)        
+            if not(tnext is None):
+                print('SNR=%6.2f>=%.2f for texp=%6.1f!! SUCCESS!' % (SNRnext,SNR,tnext))
+            (tplus,SNRplus)=(tnext,SNRnext)
+            (tminus,SNRminus)=(tlast,SNRlast)
+            #return(tnext,SNRnext)
+        else:
+            while (SNRnext>SNR):
+                print('SNR=%6.2f%.2f for texp=%6.1f, checking the next lower exptime...' % (SNRnext,SNR,tnext))
+                 
+                (tlast,SNRlast)=(tnext,SNRnext)
+                 
+                # get the next smaller exposure time
+                tnext = self.readoutpattern.nextsmallestexptime(tnext-1.0)
+                
+                # If this is the last index of the readoutpattern, and the SNR is still not big enough, return None and the last SNR possible
+                if (tnext is None):
+                    SNRnext=None
+                    print('Warning: could not find an exposure time that is short enough to be below SNR=%.2f, thus keeping texp=%.1f and SNR=%.2f' % (SNR,tlast,SNRlast))
+                    break
+
+                (SNRnext,tnext) = self.Imaging_SNR(filt,mag,tnext,lambkg4ETC=lambkg4ETC)        
+            if not(tnext is None):
+                print('SNR=%6.2f>=%.2f for texp=%6.1f, and SNR=%.2f<%.2f for texp=%6.1f!! SUCCESS!' % (SNRlast,SNR,tlast,SNRnext,SNR,tnext))
+            (tplus,SNRplus)=(tlast,SNRlast)
+            (tminus,SNRminus)=(tnext,SNRnext)
+
+        # find the exposure time 
+        if tplus is None:
+            # not good, didn't find an exposure time that gives enough SNR.
+            # checking if minus is within tolerance, if not setting best to None
+            print('BBB',(SNR-SNRminus)/SNR,SNR_tolerance_in_percent/100.0)
+            if (SNR-SNRminus)/SNR<SNR_tolerance_in_percent/100.0:
+                (tbest,SNRbest) = (tminus,SNRminus)
+            else:   
+                (tbest,SNRbest) = (None,None)
+        elif tminus is None:
+            # the shortest exposure time gives enough SNR! We can set best to plus
+            (tbest,SNRbest) = (tplus,SNRplus)
+        else:
+            # find the exposure times for which the SNR is best to the desired SNR. If it is the one with
+            # a SNR that is smaller than the desired SNR, make sure it is within the tolerance
+            if ((SNRplus-SNR)>(SNR-SNRminus)) and ((SNR-SNRminus)/SNR<SNR_tolerance_in_percent/100.0):
+                (tbest,SNRbest) = (tminus,SNRminus)
+            else:
+                (tbest,SNRbest) = (tplus,SNRplus)
+               
+        results = {'plus':(tplus,SNRplus),
+                   'minus':(tminus,SNRminus),
+                   'best':(tbest,SNRbest)}    
+        
+        return(results)
+                                
 
     def Imaging_SNR_table(self, filters, magrange, exptime, lambkg4ETC=None):
         cols = ['mag']
@@ -221,5 +307,5 @@ if __name__ == '__main__':
     
     jwst_SNR.set_background4jwst(50,target='EmptyERS')
 
-    jwst_SNR.Imaging_SNR_table(['F200W'],np.arange(28.0,29.0,0.5),1200)
-    
+    #jwst_SNR.Imaging_SNR_table(['F200W'],np.arange(28.0,29.0,0.5),1200)
+    jwst_SNR.texp4SNRatmag('F200W',28.0,20.0)

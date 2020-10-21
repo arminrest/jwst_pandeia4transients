@@ -31,10 +31,12 @@ def DecInDeg(Dec):
 class background4jwstclass(pdastroclass):
     def __init__(self):
         pdastroclass.__init__(self)        
-        # lambda in microns
+        # lambda in microns for background calculation
         self.lam = 4.5
+        # thresh for background calculation
         self.thresh = 1.1
         
+        # default lambda in microns for which the percentiles are calculated for
         self.lam4percentile=4.5
         
         # This will contain the output of jbt=background4jwsts

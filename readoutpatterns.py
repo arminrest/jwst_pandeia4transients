@@ -91,14 +91,45 @@ class readoutpatternclass(pdastroclass):
         else:
             return(indices[0])
 
+    def index4nextsmallesexptime(self,exptime):
+        indices = self.ix_inrange('texp',None,exptime)
+        if len(indices)<1:
+            return(None)
+        else:
+            return(indices[-1])
 
     def info4nextbiggestexptime(self,exptime):
         index = self.index4nextbiggestexptime(exptime)
         return(self.getinfo(index))
 
+    def info4nextsmallesexptime(self,exptime):
+        index = self.index4nextsmallesexptime(exptime)
+        return(self.getinfo(index))
+
     def info4closestexptime(self,exptime):
         index = self.index4closestexptime(exptime)
         return(self.getinfo(index))
+        
+    def nextbiggestexptime(self,exptime):
+        index = self.index4nextbiggestexptime(exptime)
+        if index is None: 
+            return(None)
+        else:
+            return(self.t.at[index,'texp'])
+
+    def nextsmallestexptime(self,exptime):
+        index = self.index4nextsmallesexptime(exptime)
+        if index is None: 
+            return(None)
+        else:
+            return(self.t.at[index,'texp'])
+
+    def closestexptime(self,exptime):
+        index = self.index4closestexptime(exptime)
+        if index is None: 
+            return(None)
+        else:
+            return(self.t.at[index,'texp'])
         
 
 if __name__ == '__main__':
