@@ -157,9 +157,10 @@ class jwst_SNRclass:
 
     def Imaging_SNR(self, filt, mag, exptime, lambkg4ETC=None):
         
-        if self.verbose>2: print('filter:%s mag:%f, exptime:%f' % (filt, mag, exptime))
+        if self.verbose>2: print('Calculating SNR for filter:%s mag:%f, exptime:%f' % (filt, mag, exptime))
 
         if lambkg4ETC is None:
+            if self.verbose>2: print('Using saved lambbkg4ETC')
             lambkg4ETC=self.lambkg4ETC
         if lambkg4ETC is None:
             print('!!!!!!!!!!!!!!!\n!!!WARNING!!!!!\n!!!!!!!!!!!!!!!\nNo background specified, calculating SNR WITHOUT background!!')
