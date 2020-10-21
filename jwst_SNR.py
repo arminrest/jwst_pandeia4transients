@@ -193,11 +193,11 @@ class jwst_SNRclass:
         SNR = self.ETCresults['scalar']['sn']
         total_exposure_time = self.ETCresults['scalar']['total_exposure_time']
         
-        if self.verbose>1: print('filter:%s mag:%.2f, target exptime:%.1f  == SNR=%.2f exptime=%.1f' % (filt, mag, exptime,SNR))
+        if self.verbose>1: print('filter:%s mag:%.2f, target exptime:%.1f  == SNR=%.2f exptime=%.1f' % (filt, mag, exptime,SNR,total_exposure_time))
         return(SNR,total_exposure_time)
 
     def texp4SNRatmag(self,filt,mag,SNR,lambkg4ETC=None,SNR_tolerance_in_percent=0.0):
-        print('#############################\n#### Filter %s, mag %.2f\n#############################' % (filt,mag,total_exposure_time))
+        print('#############################\n#### Filter %s, mag %.2f\n#############################' % (filt,mag))
 
         texp0=1000
         (SNR0, texp0) = self.Imaging_SNR(filt,mag,texp0,lambkg4ETC=lambkg4ETC)
