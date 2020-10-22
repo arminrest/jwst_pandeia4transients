@@ -51,6 +51,9 @@ class jwst_SNRclass:
         self.lambkg4ETC=None
         
         self.ETCresults = None
+        
+        self.SNRformatters = None
+
        
         
     def get_val4dict(self,d,instrument=None,mode=None):
@@ -221,7 +224,8 @@ class jwst_SNRclass:
         (tlast,SNRlast)=(tnext,SNRnext)
         if SNRnext<=SNR:
             while (SNRnext<SNR):
-                print('SNR=%6.2f for texp=%6.1f, SNR=%.2f wanted...' % (SNRnext,tnext,SNR))
+                print('SNR=%6.2f<%.2f for texp=%6.1f, checking the next lower exptime...' % (SNRnext,SNR,tnext))
+                #print('SNR=%6.2f for texp=%6.1f, SNR=%.2f wanted...' % (SNRnext,tnext,SNR))
                   
                 (tlast,SNRlast)=(tnext,SNRnext)
                  
@@ -242,7 +246,7 @@ class jwst_SNRclass:
             #return(tnext,SNRnext)
         else:
             while (SNRnext>SNR):
-                print('SNR=%6.2f%.2f for texp=%6.1f, checking the next lower exptime...' % (SNRnext,SNR,tnext))
+                print('SNR=%6.2f>%.2f for texp=%6.1f, checking the next lower exptime...' % (SNRnext,SNR,tnext))
                  
                 (tlast,SNRlast)=(tnext,SNRnext)
                  
@@ -288,19 +292,39 @@ class jwst_SNRclass:
         return(results)
                                 
 
-    def Imaging_SNR_table(self, filters, magrange, exptime, lambkg4ETC=None):
+    def Imaging_SNR_table(self, filters, magrange, exptime, lambkg4ETC=None,SNRformat='{:.2f}'.format):
         cols = ['mag']
         cols.extend(filters)
         self.SNR = pdastroclass(columns=cols)
         self.SNR.t['mag']=magrange
+        self.SNRformatters = {}
         for filt in filters:
+            self.SNRformatters[filt]=SNRformat
             SNRs=[]
             for mag in magrange:
                 (SNRval,total_exposure_time)=self.Imaging_SNR(filt,mag,exptime,lambkg4ETC=lambkg4ETC)
                 SNRs.append(SNRval)
             self.SNR.t[filt]=np.array(SNRs)
-        #self.SNR.t.format({'mag': '{:.2f}'.format, 'F200W': '{:.2f}'.format})
-        #self.SNR.write(formatters={'mag': '{:.2f}'.format, 'F200W': '{:.2f}'.format})
+
+    def Imaging_texp_table(self, filters, magrange, SNR, lambkg4ETC=None,texp_type='best',
+                           saveSNRflag=False,texpformat='{:.1f}'.format,SNR_tolerance_in_percent=10):
+        cols = ['mag']
+        cols.extend(filters)
+        self.texp = pdastroclass(columns=cols)
+        self.texp.t['mag']=magrange
+        self.texpformatters = {}
+        for filt in filters:
+            self.texpformatters[filt]=texpformat
+            texps=[]
+            SNRs=[]
+            for mag in magrange:
+                texp_results=self.texp4SNRatmag(filt,mag,SNR,lambkg4ETC=lambkg4ETC,SNR_tolerance_in_percent=SNR_tolerance_in_percent)
+                texps.append(texp_results[texp_type][0])
+                SNRs.append(texp_results[texp_type][1])
+            self.texp.t[filt]=np.array(texps)
+            if saveSNRflag:
+                self.texp.t[filt+'_SNR']=np.array(SNRs)
+                
 
 if __name__ == '__main__':
     print('hello')
@@ -311,5 +335,7 @@ if __name__ == '__main__':
     jwst_SNR.verbose=1
     jwst_SNR.set_background4jwst(50,target='EmptyERS')
 
-    jwst_SNR.Imaging_SNR_table(['F200W'],np.arange(28.0,29.0,0.5),1200)
-    jwst_SNR.texp4SNRatmag('F200W',28.0,20.0)
+    #jwst_SNR.Imaging_SNR_table(['F200W'],np.arange(28.0,29.0,0.5),1200)
+    #jwst_SNR.texp4SNRatmag('F200W',28.0,20.0)
+    jwst_SNR.Imaging_texp_table(['F200W'],np.arange(28.0,29.0,0.5),10)
+    
