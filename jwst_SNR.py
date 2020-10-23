@@ -398,15 +398,19 @@ class jwst_SNRclass:
         self.SNR = pdastroclass(columns=cols)
         self.SNR.t['mag']=magrange
         self.formatters4SNRtable = {}
+        
+        exptime1=None
         for filt in filters:
             self.formatters4SNRtable[filt+'_SN']=SNRformat
             
             SNRs=[]
             for mag in magrange:
-                (SNRval,total_exposure_time)=self.Imaging_SNR(filt,mag,exptime,lambkg4ETC=lambkg4ETC)
+                (SNRval,exptime1)=self.Imaging_SNR(filt,mag,exptime,lambkg4ETC=lambkg4ETC)
                 SNRs.append(SNRval)
                 
             self.SNR.t[filt+'_SN']=np.array(SNRs)
+            
+        return(exptime1)
 
     def Imaging_texp_table(self, filters, magrange, SNR, lambkg4ETC=None,texp_type='best',
                            SNR_tolerance_in_percent=10,saveSNRflag=False,texpformat=None,SNRformat=None):
