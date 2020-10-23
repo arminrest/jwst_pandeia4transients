@@ -52,7 +52,10 @@ class jwst_SNRclass:
         
         self.ETCresults = None
         
-        self.SNRformatters = None
+        self.SNRformat = '{:.2f}'.format
+        self.texpformat = '{:.1f}'.format
+        self.formatters4SNRtable = None
+        self.formatters4texptable = None
 
        
         
@@ -143,13 +146,17 @@ class jwst_SNRclass:
         **kwargs : TYPE
             optional arguments that get passed to background4jwst.lambkg4ETC:
                 lam : float, optional
-                    Input wavelength for the pandeia 'background' routine. If None, the default value of self.lam is used
+                    Input wavelength for the pandeia 'background' routine. 
+                    If None, the default value of self.lam is used
                 thresh : float, optional
-                    Input threshold for the pandeia 'background' routine. If None, the default value of self.thresh is used
+                    Input threshold for the pandeia 'background' routine. 
+                    If None, the default value of self.thresh is used
                 lam4percentile : float, optional
-                    wavelength for which the percentiles are calculated for. If None, the default value of self.lam4percentile is used
+                    wavelength for which the percentiles are calculated for. 
+                    If None, the default value of self.lam4percentile is used
                 target: string, optional
-                    if specified, the RA,Dec is set to the target. target must be part of self.defaulttargets
+                    if specified, the RA,Dec is set to the target. 
+                    Target must be part of self.defaulttargets
         Returns
         -------
         None.
@@ -159,6 +166,29 @@ class jwst_SNRclass:
         return(0)
 
     def Imaging_SNR(self, filt, mag, exptime, lambkg4ETC=None):
+        """
+        Parameters
+        ----------
+        filt : string
+            filter for which the S/N should be calculated for.
+        mag : float
+            magnitude  for which the S/N should be calculated for.
+        exptime : float
+             exposure time for which the S/N should be calculated for. The
+             readout pattern that closest matches the exposure time is used.
+        lambkg4ETC : list/tuple of two arrays, optional
+            the first array is the wavelength, the second the background. 
+            The default is None. If none, then the background data in 
+            self.lambkg4ETC is used.
+
+        Returns
+        -------
+        (SNR,exptime)
+        Note: the returned exptime can differ from the passed exptime. 
+        It is the true exposure time associated with the readout pattern
+        used for the calculation.
+
+        """
         
         if self.verbose>2: print('Calculating SNR for filter:%s mag:%f, exptime:%f' % (filt, mag, exptime))
 
@@ -200,16 +230,53 @@ class jwst_SNRclass:
         return(SNR,total_exposure_time)
 
     def texp4SNRatmag(self,filt,mag,SNR,lambkg4ETC=None,SNR_tolerance_in_percent=0.0):
-        print('#############################\n#### Filter %s, mag %.2f\n#############################' % (filt,mag))
+        """
+        Parameters
+        ----------
+        filt : string
+            filter for which the exposure time should be calculated for.
+        mag : float
+            magnitude  for which the exposure time should be calculated for.
+        SNR : float 
+            S/N  for which the exposure time should be calculated for.
+        lambkg4ETC : list/tuple of two arrays, optional
+            the first array is the wavelength, the second the background. 
+            The default is None. If none, then the background data in 
+            self.lambkg4ETC is used.
+        SNR_tolerance_in_percent : float, optional
+            An exposure time with a SNRminus<SNR can be accepted as 'best' if
+            SNRminus is closer to SNR than SNRplus (or SNRplus==None), 
+            AND if (SNR0-SNRminus)/SNR0<SNR_tolerance_in_percent/100.0 
+            (i.e. if the SNRminus is within the tolerance)
+
+        Raises
+        ------
+        RuntimeError
+            DESCRIPTION.
+
+        Returns
+        -------
+        Returns a dictionary with 3 keys: 'plus', 'minus' and 'best'.
+        'plus' contains the (texpplus,SNRplus) with SNR>=SNR0
+        'minus' contains the (texpminus,SNRminus) with SNR<SNR0
+        if the lowest or highest exptime is hit, then they are set to (None,None) accordingly
+        
+        'best' contains the  (texpbest,SNRbest) for the following criteria:
+             if SNRminus is closer to SNR0 than SNRplus (or SNRplus==None), 
+             AND if (SNR0-SNRminus)/SNR0<SNR_tolerance_in_percent/100.0 
+             (i.e. if the SNRminus is within the tolerance), then best is 
+             set to minus. Otherwise best=plus
+        """
+        if self.verbose: print('#############################\n#### Filter %s, mag %.2f for S/N=%.f \n#############################' % (filt,mag,SNR))
 
         texp0=1000
         (SNR0, texp0) = self.Imaging_SNR(filt,mag,texp0,lambkg4ETC=lambkg4ETC)
-        print('SNR=%6.2f for starting texp=%6.1f' % (SNR0,texp0))
+        if self.verbose>1: print('SNR=%6.2f for starting texp=%6.1f' % (SNR0,texp0))
       
         # guesstimate the best exposure time. The SNR theoretically goes with sqrt(t), 
         # thus t should go with SNR^2. However, it looks like the exponent is smaller than 2
         texp_guess = texp0 * math.pow(SNR/SNR0,9/8)
-        print('texp guess:',texp_guess)
+        if self.verbose>1: print('texp guess:',texp_guess)
         
         tnext = self.readoutpattern.nextbiggestexptime(texp_guess)
         if tnext is None:
@@ -219,12 +286,12 @@ class jwst_SNRclass:
             
             
         (SNRnext,tnext) = self.Imaging_SNR(filt,mag,tnext,lambkg4ETC=lambkg4ETC)        
-        print('SNR=%6.2f for next texp=%6.1f' % (SNRnext,tnext))
+        if self.verbose>1: print('SNR=%6.2f for next texp=%6.1f' % (SNRnext,tnext))
         
         (tlast,SNRlast)=(tnext,SNRnext)
         if SNRnext<=SNR:
             while (SNRnext<SNR):
-                print('SNR=%6.2f<%.2f for texp=%6.1f, checking the next lower exptime...' % (SNRnext,SNR,tnext))
+                if self.verbose>1: print('SNR=%6.2f<%.2f for texp=%6.1f, checking the next lower exptime...' % (SNRnext,SNR,tnext))
                 #print('SNR=%6.2f for texp=%6.1f, SNR=%.2f wanted...' % (SNRnext,tnext,SNR))
                   
                 (tlast,SNRlast)=(tnext,SNRnext)
@@ -240,13 +307,13 @@ class jwst_SNRclass:
 
                 (SNRnext,tnext) = self.Imaging_SNR(filt,mag,tnext,lambkg4ETC=lambkg4ETC)        
             if not(tnext is None):
-                print('SNR=%6.2f>=%.2f for texp=%6.1f!! SUCCESS!' % (SNRnext,SNR,tnext))
+                if self.verbose: print('SNR=%6.2f>=%.2f for texp=%6.1f!! SUCCESS!' % (SNRnext,SNR,tnext))
             (tplus,SNRplus)=(tnext,SNRnext)
             (tminus,SNRminus)=(tlast,SNRlast)
             #return(tnext,SNRnext)
         else:
             while (SNRnext>SNR):
-                print('SNR=%6.2f>%.2f for texp=%6.1f, checking the next lower exptime...' % (SNRnext,SNR,tnext))
+                if self.verbose>1: print('SNR=%6.2f>%.2f for texp=%6.1f, checking the next lower exptime...' % (SNRnext,SNR,tnext))
                  
                 (tlast,SNRlast)=(tnext,SNRnext)
                  
@@ -261,7 +328,7 @@ class jwst_SNRclass:
 
                 (SNRnext,tnext) = self.Imaging_SNR(filt,mag,tnext,lambkg4ETC=lambkg4ETC)        
             if not(tnext is None):
-                print('SNR=%6.2f>=%.2f for texp=%6.1f, and SNR=%.2f<%.2f for texp=%6.1f!! SUCCESS!' % (SNRlast,SNR,tlast,SNRnext,SNR,tnext))
+                if self.verbose: print('SNR=%6.2f>=%.2f for texp=%6.1f, and SNR=%.2f<%.2f for texp=%6.1f!! SUCCESS!' % (SNRlast,SNR,tlast,SNRnext,SNR,tnext))
             (tplus,SNRplus)=(tlast,SNRlast)
             (tminus,SNRminus)=(tnext,SNRnext)
 
@@ -269,7 +336,6 @@ class jwst_SNRclass:
         if tplus is None:
             # not good, didn't find an exposure time that gives enough SNR.
             # checking if minus is within tolerance, if not setting best to None
-            print('BBB',(SNR-SNRminus)/SNR,SNR_tolerance_in_percent/100.0)
             if (SNR-SNRminus)/SNR<SNR_tolerance_in_percent/100.0:
                 (tbest,SNRbest) = (tminus,SNRminus)
             else:   
@@ -292,38 +358,133 @@ class jwst_SNRclass:
         return(results)
                                 
 
-    def Imaging_SNR_table(self, filters, magrange, exptime, lambkg4ETC=None,SNRformat='{:.2f}'.format):
+    def Imaging_SNR_table(self, filters, magrange, exptime, lambkg4ETC=None,SNRformat=None):
+        """
+        Parameters
+        ----------
+        filters : list or string
+            Pass (a list of) filter(s) for which to calculate the SNR.
+        magrange : list/tuple of magnitudes
+            Pass a list of magnitudes for which to calculate the SNR..
+        exptime : float
+             exposure time for which the S/N should be calculated for. The
+             readout pattern that closest matches the exposure time is used.
+        lambkg4ETC : list/tuple of two arrays, optional
+            the first array is the wavelength, the second the background. 
+            The default is None. If none, then the background data in 
+            self.lambkg4ETC is used.
+        SNRformat : string formatter, optional
+            String formatter for the SNR table. The default is None. If None,
+            then the default formatter self.SNRformat is used
+
+        Returns
+        -------
+        None. the table with the SNRs is saved as a pdastro object 
+        in self.SNR. The panda table is in self.SNR.t. 
+        The formatters for the table are in self.formatters4SNRtable
+        Saving the table:
+        self.SNR.write('myfilename.txt',formatters=self.formatters4SNRtable)
+        """
+        
+        #Make sure filters is a list and not a string
+        if isinstance(filters,str):filters=[filters]
+        
         cols = ['mag']
-        cols.extend(filters)
+        #cols.extend(filters)
+        for col in filters: cols.append(col+'_SN')
+       
+        if SNRformat == None: SNRformat = self.SNRformat
+        
         self.SNR = pdastroclass(columns=cols)
         self.SNR.t['mag']=magrange
-        self.SNRformatters = {}
+        self.formatters4SNRtable = {}
         for filt in filters:
-            self.SNRformatters[filt]=SNRformat
+            self.formatters4SNRtable[filt+'_SN']=SNRformat
+            
             SNRs=[]
             for mag in magrange:
                 (SNRval,total_exposure_time)=self.Imaging_SNR(filt,mag,exptime,lambkg4ETC=lambkg4ETC)
                 SNRs.append(SNRval)
-            self.SNR.t[filt]=np.array(SNRs)
+                
+            self.SNR.t[filt+'_SN']=np.array(SNRs)
 
     def Imaging_texp_table(self, filters, magrange, SNR, lambkg4ETC=None,texp_type='best',
-                           saveSNRflag=False,texpformat='{:.1f}'.format,SNR_tolerance_in_percent=10):
+                           SNR_tolerance_in_percent=10,saveSNRflag=False,texpformat=None,SNRformat=None):
+        """
+
+        Parameters
+        ----------
+        filters : list or string
+            Pass (a list of) filter(s) for which to calculate the SNR.
+        magrange : list/tuple of magnitudes
+            Pass a list of magnitudes for which to calculate the SNR..
+        SNR : float 
+            S/N  for which the exposure time should be calculated for.
+        lambkg4ETC : list/tuple of two arrays, optional
+            the first array is the wavelength, the second the background. 
+            The default is None. If none, then the background data in 
+            self.lambkg4ETC is used.
+        texp_type : string, optional
+            'minus', 'plus', or 'best'. The default is 'best'. This is used
+            to select which of the exposure times from self.texp4SNRatmag is 
+            used
+        SNR_tolerance_in_percent : float, optional
+            An exposure time with a SNRminus<SNR can be accepted as 'best' if
+            SNRminus is closer to SNR than SNRplus (or SNRplus==None), 
+            AND if (SNR0-SNRminus)/SNR0<SNR_tolerance_in_percent/100.0 
+            (i.e. if the SNRminus is within the tolerance)
+        saveSNRflag : True/False, optional
+            Save columns <filter>_SN in which the S/N for the given exposure 
+            time is saved. The default is False.
+        texpformat : string formatter, optional
+            String formatter for the exposure time columns. The default is 
+            None. If None, then the default formatter self.texpformat is used
+        SNRformat : string formatter, optional
+            String formatter for the SNR columns. The default is None. If None,
+            then the default formatter self.SNRformat is used
+
+        Returns
+        -------
+        None. the table with the exposure times is saved as a pdastro object 
+        in self.texp. The panda table is in self.texp.t. 
+        The formatters for the table are in self.formatters4texptable
+        Saving the table:
+        self.texp.write('myfilename.txt',formatters=self.formatters4texptable)
+
+        """
+
+        #Make sure filters is a list and not a string
+        if isinstance(filters,str):filters=[filters]
+
         cols = ['mag']
-        cols.extend(filters)
+        for col in filters: cols.append(col+'_t')
+        if saveSNRflag:
+            for col in filters: cols.append(col+'_SN')
+
+        if SNRformat == None: SNRformat = self.SNRformat
+        if texpformat == None: texpformat = self.texpformat
+
         self.texp = pdastroclass(columns=cols)
         self.texp.t['mag']=magrange
-        self.texpformatters = {}
+        self.formatters4texptable = {}
+        
         for filt in filters:
-            self.texpformatters[filt]=texpformat
+            
+            self.formatters4texptable[filt+'_t']=texpformat
+            if saveSNRflag:
+                self.formatters4texptable[filt+'_SN']=SNRformat
+            
             texps=[]
             SNRs=[]
             for mag in magrange:
                 texp_results=self.texp4SNRatmag(filt,mag,SNR,lambkg4ETC=lambkg4ETC,SNR_tolerance_in_percent=SNR_tolerance_in_percent)
                 texps.append(texp_results[texp_type][0])
-                SNRs.append(texp_results[texp_type][1])
-            self.texp.t[filt]=np.array(texps)
+                if saveSNRflag:
+                    SNRs.append(texp_results[texp_type][1])
+                    
+            self.texp.t[filt+'_t']=np.array(texps)
             if saveSNRflag:
-                self.texp.t[filt+'_SNR']=np.array(SNRs)
+                self.texp.t[filt+'_SN']=np.array(SNRs)
                 
 
 if __name__ == '__main__':
