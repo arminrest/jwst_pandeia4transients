@@ -29,12 +29,12 @@ def nJytoAB(F_nJy):
 
             
 class jwst_SNRclass:
-    def __init__(self,instrument='nircam',mode='sw_imaging',ETCjsonfile=None):
+    def __init__(self,instrument='nircam',mode=None,ETCjsonfile=None):
         self.verbose = 0
         self.allowed_instruments = ['nircam','nirspec','niriss','miri']
 
         # initialization
-        self.initialize_pandeia(instrument,mode,ETCjsonfile=ETCjsonfile)
+        self.initialize_pandeia(instrument,mode=mode,ETCjsonfile=ETCjsonfile)
 
         # set apertures
         # pandeia default values: 0.1" NIRCam, 0.3" MIRI
@@ -96,10 +96,12 @@ class jwst_SNRclass:
     def initialize_pandeia(self,instrument,mode=None,ETCjsonfile=None):
         print('Initializing pandeia with %s, %s' % (instrument,mode))
         
+        # make sure the instrument is correct
         instrument = instrument.lower()
         if not (instrument in self.allowed_instruments):
             raise(RuntimeError,'instrument %s not in %s' % (instrument,' '.join(self.allowed_instruments)))   
 
+        # if no mode is given, choose the default one.
         if mode is None:
             if instrument=='nircam':
                 mode='sw_imaging'

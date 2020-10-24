@@ -11,8 +11,8 @@ import numpy as np
 from jwst_SNR import jwst_SNRclass
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(usage="create S/N table for a given set of filters, mags, and exposure time")
-    parser.add_argument('exptime', type=float, help=('specify exposure time (approximate ok, it will identify the closest readout pattern'))
+    parser = argparse.ArgumentParser(usage="create exposure time table for a given set of filters, mags, and target S/N")
+    parser.add_argument('SNR', type=float, help=('specify target SNR'))
     parser.add_argument('-i','--instrument', default='nircam', choices=['nircam','miri','niriss'], help=('specify instrument (default=%(default)s)'))
     parser.add_argument('--mode', default=None, choices=['imaging','sw_imaging','lw_imaging'], help=('specify mode. If None, then the default mode for a given instrument is chosen (default=%(default)s)'))
     parser.add_argument('-f','--filters', default=['F200W'],nargs='+', help=('specify filters'))
@@ -25,11 +25,18 @@ if __name__ == '__main__':
     parser.add_argument('--bkg_lam',  type=float, default=4.5, help=('specify the wavelength passed to pandeia jwst_backgrounds.background routine (default=%(default)s)'))
     parser.add_argument('--bkg_thresh',  type=float, default=1.1, help=('specify the threshold passed to pandeia jwst_backgrounds.background routine (default=%(default)s)'))
     parser.add_argument('-v','--verbose', default=0, action='count')
-
+    parser.add_argument('--SNR_tolerance_in_percent', type=float, default=10.0, help=('specify the tolerance in target S/N (default=%(default)s)'))
+    parser.add_argument('--saveSNR', default=False, action='store_true', help=('Save the S/N as well in the table'))
+                        
     args = parser.parse_args()
     
-    # initialize with instrument and mode. If mode is None, the default modes are used for a given instrument
-    jwst_SNR=jwst_SNRclass(instrument=args.instrument,mode=args.mode)
+    if args.instrument=='nircam':
+        mode='sw_imaging'
+    else:
+        mode='imaging'
+        
+    # initialize with instrument and mode
+    jwst_SNR=jwst_SNRclass(instrument=args.instrument,mode=mode)
     jwst_SNR.verbose=args.verbose
 
     # set the background
@@ -43,26 +50,25 @@ if __name__ == '__main__':
     filters = args.filters
     magrange = np.arange(args.magrange[0],args.magrange[1],args.magrange[2])
 
-    # SNR panda table is in jwst_SNR.SNR.t
-    # exptime_used is the exposure time corresponding to the 
-    # readout pattern used (which can be different to args.exptime)
-    jwst_SNR.Imaging_SNR_table(filters,magrange,args.exptime)
-    if jwst_SNR.verbose: print('exposure time used: %.1f (target exposure time was %.1f)' % (exptime_used,args.exptime))
-    
+    # exposure time panda table is in jwst_SNR.texp.t
+    jwst_SNR.Imaging_texp_table(filters,magrange,args.SNR,
+                                SNR_tolerance_in_percent=args.SNR_tolerance_in_percent,
+                                saveSNRflag=args.saveSNR)
+   
     # save the file if wanted
     if not(args.save is None):
         # if verbose, also write it to screen
-        if jwst_SNR.verbose: jwst_SNR.SNR.write(formatters=jwst_SNR.formatters4SNRtable)
+        if jwst_SNR.verbose: jwst_SNR.texp.write(formatters=jwst_SNR.formatters4texptable)
 
         # get the filename
         if args.save ==[]:
-            filename = 'SNR_%.0fsec.txt' % (exptime_used)
+            filename = 'texp_SNR%.0f.txt' % (args.SNR)
         else:
             filename = args.save[0]
 
         # save the table
         print('Saving table into %s' % filename)
-        jwst_SNR.SNR.write(filename,formatters=jwst_SNR.formatters4SNRtable)
+        jwst_SNR.texp.write(filename,formatters=jwst_SNR.formatters4texptable)
     else:
         # if not saved, write it to console
-        jwst_SNR.SNR.write(formatters=jwst_SNR.formatters4SNRtable)
+        jwst_SNR.texp.write(formatters=jwst_SNR.formatters4texptable)
