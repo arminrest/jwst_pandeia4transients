@@ -229,7 +229,7 @@ class jwst_SNRclass:
         if self.verbose>1: print('filter:%s mag:%.2f, target exptime:%.1f  == SNR=%.2f exptime=%.1f' % (filt, mag, exptime,SNR,total_exposure_time))
         return(SNR,total_exposure_time)
 
-    def texp4SNRatmag(self,filt,mag,SNR,lambkg4ETC=None,SNR_tolerance_in_percent=0.0):
+    def texp4SNRatmag(self,filt,mag,SNR,lambkg4ETC=None,SNR_tolerance_in_percent=10.0):
         """
         Parameters
         ----------

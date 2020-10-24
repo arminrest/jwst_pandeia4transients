@@ -44,10 +44,13 @@ class background4jwstclass(pdastroclass):
         
         self.defaulttargets = {
             "ElGordo":('01 02 55.2','-49 14 29.3'), # Low background example: El Gordo galaxy cluster ACT0102-49
-            "EmptyERS":('03 32 42.397','-27 42 7.93') # well studied blank field in ERS
+            "EmptyERS":('03 32 42.397','-27 42 7.93'), # well studied blank field in ERS
+            "NEP-TDF":('17:22:47.896','+65:49:21.54'), # North Ecliptic Pole, Time domain Field
+            "NEP-DF":('17:40:08.00','+69:00:08.00'), # North Ecliptic Pole, Dark field (Spitzer/IRAC)
+            "CDF-S":('03:32:28.0','−27:48:30') # Chandra Deep Field South
             }
         
-        self.set_position_by_target('ElGordo')
+        self.set_position_by_target('EmptyERS')
         
         self.bgname = 'total_bg'
   
@@ -55,6 +58,7 @@ class background4jwstclass(pdastroclass):
         self.ra = RaInDeg(ra)
         self.dec = DecInDeg(dec)
         self.target = target
+        #print('Setting background position to %s (%f,%f)' % (self.target,self.ra,self.dec))
     
     def set_position_by_target(self,target):
         if not(target in self.defaulttargets):
@@ -70,6 +74,7 @@ class background4jwstclass(pdastroclass):
         if not(thresh is None):
             self.thresh=thresh
     
+        print('Calculating background for position %s (%f,%f)' % (self.target,self.ra,self.dec))
         self.bkg = jbt.background(self.ra, self.dec, wavelength=self.lam, thresh=self.thresh)
     
     def index4bkg_precentile(self,percentile,lam4percentile=None):
@@ -149,7 +154,7 @@ class background4jwstclass(pdastroclass):
             
         return(0)
     
-    def lambkg4ETC(self,percentile,lam=None,thresh=None,lam4percentile=None, target=None):
+    def lambkg4ETC(self,percentile,lam=None,thresh=None,lam4percentile=None, target='EmptyERS', targetpos=None):
         """
         wrapper around all the calls to get the info (wavelength, bkg flux) for the ETC. 
 
@@ -158,22 +163,45 @@ class background4jwstclass(pdastroclass):
         percentile : TYPE
             DESCRIPTION.
         lam : float, optional
-            Input wavelength for the pandeia 'background' routine. If None, the default value of self.lam is used
+            Input wavelength for the pandeia 'background' routine. If None, 
+            the default value of self.lam is used
         thresh : float, optional
-            Input threshold for the pandeia 'background' routine. If None, the default value of self.thresh is used
+            Input threshold for the pandeia 'background' routine. If None, 
+            the default value of self.thresh is used
         lam4percentile : float, optional
-            wavelength for which the percentiles are calculated for. If None, the default value of self.lam4percentile is used
+            wavelength for which the percentiles are calculated for. If None, 
+            the default value of self.lam4percentile is used
         target: string, optional
-            if specified, the RA,Dec is set to the target. target must be part of self.defaulttargets
+            if specified, the RA,Dec is set to this target. target must be 
+            part of self.defaulttargets. targetpos overwrites target
+        targetpos: 2 or 3 element tuple, optional
+            The first two elements are RA, Dec (in whatever format). if a 3rd
+            element is given, then it is used as name, otherwise the name
+            is set to 'usertarget'.
+            targetpos overwrites target
 
         Returns
         -------
         two numpy arrays: the first one are the wavelengths, and the second the bkg fluxes
 
         """
-        # set the RA,Dec to the target if specified
-        if not(target is None):
+        # set the RA,Dec to the desired position
+        # targetpos has a higher priority than target
+        if not(targetpos is None):
+            # figure out the name of the position
+            if len(targetpos)<2 or len(targetpos)>3:
+                raise RuntimeError('only 2 or 3 arguments allowed for targetpos! this given instead:',targetpos)
+            elif len(targetpos)==3:
+                name = targetpos[-1]
+            else:
+                name = 'usertarget'
+            # set the position ....
+            self.set_position(targetpos[0],targetpos[1],name)
+        elif not(target is None):
             self.set_position_by_target(target)
+        else:
+            raise RuntimeError('No position set!! Cannot get the background...')
+            
         
         # get the background from pandeia
         self.calc_background(lam=lam,thresh=thresh)
