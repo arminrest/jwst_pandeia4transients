@@ -93,13 +93,19 @@ class jwst_SNRclass:
             self.sky_annulii[key]=sky_dict[key]
         return(0)
     
-    def initialize_pandeia(self,instrument,mode,ETCjsonfile=None):
+    def initialize_pandeia(self,instrument,mode=None,ETCjsonfile=None):
         print('Initializing pandeia with %s, %s' % (instrument,mode))
         
         instrument = instrument.lower()
-        mode = mode.lower()
         if not (instrument in self.allowed_instruments):
             raise(RuntimeError,'instrument %s not in %s' % (instrument,' '.join(self.allowed_instruments)))   
+
+        if mode is None:
+            if instrument=='nircam':
+                mode='sw_imaging'
+            else:
+                mode='imaging'
+        mode = mode.lower()
 
         self.readoutpattern=readoutpatternclass(instrument)
  

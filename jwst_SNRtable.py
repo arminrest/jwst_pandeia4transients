@@ -14,6 +14,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(usage="create S/N table for a given set of filters, mags, and exposure time")
     parser.add_argument('exptime', type=float, help=('specify exposure time (approximate ok, it will identify the closest readout pattern'))
     parser.add_argument('-i','--instrument', default='nircam', choices=['nircam','miri','niriss'], help=('specify instrument (default=%(default)s)'))
+    parser.add_argument('--mode', default=None, choices=['imaging','sw_imaging','lw_imaging'], help=('specify mode. If None, then the default mode for a given instrument is chosen (default=%(default)s)'))
     parser.add_argument('-f','--filters', default=['F200W'],nargs='+', help=('specify filters'))
     parser.add_argument('-m','--magrange', nargs=3, type=float, default=[24,28,1], help=('specify the magnitude range magmin magmax dm (default=%(default)s)'))
     parser.add_argument('-s','--save', nargs='*',  type=str, default=None, help=('save the table. If no filename specified, then SNR_<exptime>sec.txt is used (default=%(default)s)'))
@@ -27,13 +28,8 @@ if __name__ == '__main__':
                         
     args = parser.parse_args()
     
-    if args.instrument=='nircam':
-        mode='sw_imaging'
-    else:
-        mode='imaging'
-        
     # initialize with instrument and mode
-    jwst_SNR=jwst_SNRclass(instrument=args.instrument,mode=mode)
+    jwst_SNR=jwst_SNRclass(instrument=args.instrument,mode=args.mode)
     jwst_SNR.verbose=args.verbose
 
     # set the background
