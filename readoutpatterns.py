@@ -49,14 +49,26 @@ class readoutpatternclass(pdastroclass):
             raise(RuntimeError,'instrument %s not in %s' % (self.instrument,' '.join(self.allowed_instruments)))   
         return(0)
 
-    def loadreadoutpatterntable(self):        
-        self.t = pd.read_csv(io.StringIO(pattern2exptime[self.instrument]),delim_whitespace=True,skipinitialspace=True)
+    def loadreadoutpatterntable(self):     
+        if self.instrument == 'nirspec':
+            path = os.path.dirname(os.path.abspath(__file__))
+            file = os.path.join(path,'data/nirspecpattern2exptime.csv')
+            self.t = pd.read_csv(path)
+        else:
+            self.t = pd.read_csv(io.StringIO(pattern2exptime[self.instrument]),delim_whitespace=True,skipinitialspace=True)
         return(0)
 
     def getinfo(self,index):
         if index == None:
             return(None)
         if self.instrument == 'nircam':
+            info = {'readout_pattern':self.t.at[index,'Readout'].lower(),
+                    'NGROUP':self.t.at[index,'NGROUP'],
+                    'NINT':self.t.at[index,'NINT'],
+                    'tint':self.t.at[index,'tint'],
+                    'NEXP':self.t.at[index,'NEXP'],
+                    'texp':self.t.at[index,'texp']}
+        if self.instrument == 'nirspec':
             info = {'readout_pattern':self.t.at[index,'Readout'].lower(),
                     'NGROUP':self.t.at[index,'NGROUP'],
                     'NINT':self.t.at[index,'NINT'],
