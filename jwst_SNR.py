@@ -47,7 +47,7 @@ class jwst_SNRclass:
         self.set_sky_annulus({'nircam_sw_imaging':(0.6, 0.99), 'nircam_lw_imaging':(0.6, 0.99), 'niriss':(0.6, 0.99), 'miri':(0.6, 0.99)})
         
 
-        self.1232 = background4jwstclass()
+        self.background4jwst = background4jwstclass()
         self.lambkg4ETC=None
         
         self.ETCresults = None
