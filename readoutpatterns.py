@@ -61,14 +61,7 @@ class readoutpatternclass(pdastroclass):
     def getinfo(self,index):
         if index == None:
             return(None)
-        if self.instrument == 'nircam':
-            info = {'readout_pattern':self.t.at[index,'Readout'].lower(),
-                    'NGROUP':self.t.at[index,'NGROUP'],
-                    'NINT':self.t.at[index,'NINT'],
-                    'tint':self.t.at[index,'tint'],
-                    'NEXP':self.t.at[index,'NEXP'],
-                    'texp':self.t.at[index,'texp']}
-        if self.instrument == 'nirspec':
+        if (self.instrument == 'nircam') | (self.instrument == 'nirspec'):
             info = {'readout_pattern':self.t.at[index,'Readout'].lower(),
                     'NGROUP':self.t.at[index,'NGROUP'],
                     'NINT':self.t.at[index,'NINT'],
