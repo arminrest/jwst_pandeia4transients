@@ -233,6 +233,7 @@ class readoutpatternclass(pdastroclass):
         return(tint,texp)
     
     def calc_MIRI_exptimes(self,
+                           filename=None,
                            # https://jwst-docs.stsci.edu/mid-infrared-instrument/miri-observing-strategies/miri-imaging-recommended-strategies#MIRIImagingRecommendedStrategies-Dwelltimelimit
                            # recommended, but not required is min=40 and max = 360 groups
                            Ng_min=40,Ng_max=360, 
@@ -256,7 +257,7 @@ class readoutpatternclass(pdastroclass):
         self.t contains the table
 
         """
-        result = self.calc_exptimes('miri','FAST',Ng_min=Ng_min,Ng_max=Ng_max,Ng_absmin=Ng_absmin,
+        result = self.calc_exptimes('miri','FAST',filename=filename,Ng_min=Ng_min,Ng_max=Ng_max,Ng_absmin=Ng_absmin,
                                     Nexp_max=Nexp_max,Ngroups_modval=Ngroups_modval,tmin=tmin,tmax=tmax)
         return(result)
         
@@ -365,7 +366,10 @@ class readoutpatternclass(pdastroclass):
         
         # parse the string into pdastro
         self.t = pd.read_csv(io.StringIO(pattern2exptime[self.instrument]),delim_whitespace=True,skipinitialspace=True)
-        self.write()
+
+        if not(filename is None):
+            print('Writing table to %s' % filename)
+            self.write(filename)
         return(0)                                  
 
 
