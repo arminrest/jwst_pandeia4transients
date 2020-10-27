@@ -116,6 +116,7 @@ class jwst_SNRclass:
         self.readoutpattern=readoutpatternclass(instrument)
  
         if ETCjsonfile is None:
+            print('Initializing',instrument,mode)
             self.pandeiacfg=build_default_calc('jwst',instrument,mode)
         else:
             with open(ETCjsonfile) as f:  # use a json file you have
@@ -137,16 +138,18 @@ class jwst_SNRclass:
             instrument = self.get_instrument()
             
         if instrument.lower() in ['niriss','miri']:
-            mode = ('imaging',None)
-            raise RuntimeError('Need to figure out what aperture value is for niriss and miri!!!! fix me!!!')
+            mode = 'imaging'
+            aperture = 'imager'
+            if instrument.lower() in ['niriss']:
+                raise RuntimeError('Need to figure out what aperture value is for niriss and miri!!!! fix me!!!')
         elif instrument.lower() == 'nircam':
             lam = int(filt[1:4]) / 100.
-            ch = 'sw lw'.split()[lam > 2.4]
-            mode = ch+'_imaging'
+            aperture = 'sw lw'.split()[lam > 2.4]
+            mode = aperture+'_imaging'
         else:
              raise RuntimeError("instrument %s is not allowed, only nircam, niriss, and miri" % (instrument))
            
-        return(mode,ch)    
+        return(mode,aperture)    
 
     def set_background4jwst(self,percentile,**kwargs):
         """
@@ -227,7 +230,8 @@ class jwst_SNRclass:
 
         # mode and aperture
         (mode,aperture)=self.determine_imaging_mode_and_aperture(filt)
-        self.pandeiacfg['configuration']['instrument']['aperture'] = aperture
+        if not(aperture is None):
+            self.pandeiacfg['configuration']['instrument']['aperture'] = aperture
         self.pandeiacfg['configuration']['instrument']['mode'] = mode
 
         # Photometric aperture and background sky annulus
@@ -291,11 +295,20 @@ class jwst_SNRclass:
         texp0=1000
         (SNR0, texp0) = self.Imaging_SNR(filt,mag,texp0,lambkg4ETC=lambkg4ETC)
         if self.verbose>1: print('SNR=%6.2f for starting texp=%6.1f' % (SNR0,texp0))
+        
+        instrument = self.get_instrument()
+        if instrument=='nircam':
+            pwlindex = 9/8
+        elif instrument=='miri':
+            pwlindex = 16/8
+        else:
+            raise RuntimeError('instrment %s not yet implemented!' % instrument)
+            
       
         # guesstimate the best exposure time. The SNR theoretically goes with sqrt(t), 
         # thus t should go with SNR^2. However, it looks like the exponent is smaller than 2
-        texp_guess = texp0 * math.pow(SNR/SNR0,9/8)
-        if self.verbose>1: print('texp guess:',texp_guess)
+        texp_guess = texp0 * math.pow(SNR/SNR0,pwlindex)
+        if self.verbose>1: print('texp guess: %.1f' % texp_guess)
         
         tnext = self.readoutpattern.nextbiggestexptime(texp_guess)
         if tnext is None:
