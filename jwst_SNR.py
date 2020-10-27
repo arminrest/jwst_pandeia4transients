@@ -105,8 +105,12 @@ class jwst_SNRclass:
         if mode is None:
             if instrument=='nircam':
                 mode='sw_imaging'
-            else:
+            elif instrument in ['niriss','miri']:
                 mode='imaging'
+            elif instrument=='nirspec':
+                mode='fixed_slit'
+            else:
+                raise RuntimeError('unknown instrument %s!' % instrument)
         mode = mode.lower()
 
         self.readoutpattern=readoutpatternclass(instrument)

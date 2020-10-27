@@ -33,12 +33,36 @@ MEDIUM8         9       1       944.8   4       3779.2
 MEDIUM8         10      1       1052.2  4       4208.8
 """
 
+
 class readoutpatternclass(pdastroclass):
     def __init__(self,instrument):
         pdastroclass.__init__(self)
-        self.allowed_instruments = ['nircam','nirspec','miri']
+        
+        # MIRI: group limits 
+        # https://jwst-docs.stsci.edu/mid-infrared-instrument/miri-observing-strategies/miri-imaging-recommended-strategies#MIRIImagingRecommendedStrategies-Dwelltimelimit
+        # recommended, but not required is min=40 and max = 360 groups
+        self.MIRI_Ng_min = 40
+        self.MIRI_Ng_max = 360
+        # absolute minimum number of groups, in case of very short exposures with Ngroups<self.MIRI_Ng_min
+        self.MIRI_Ng_absmin = 10
+        # time in seconds per group in MIRI images
+        self.MIRI_tgroup_sec = {}
+        self.MIRI_tgroup_sec['fast']=2.775
+        
+        # if MIRI_Ngroups_modval != None: only keep entries for which 
+        # Ngroups % MIRI_Ngroups_modval == 0
+        # This reduces the # of entries in the table.
+        self.MIRI_Ngroups_modval = 4
+        
+        # maximum # of exposures
+        self.MIRI_max_Nexp=4
+        
+        # to what total exposure time should 
+        self.MIRI_max_tint = 10000.0
+        
+        self.allowed_instruments = ['nircam','niriss','nirspec','miri']
         self.set_instrument(instrument)
-        self.loadreadoutpatterntable()
+        self.loadreadoutpatterntable(instrument)
 
     def set_instrument(self,instrument):
         if not(instrument is None):
@@ -46,11 +70,87 @@ class readoutpatternclass(pdastroclass):
         if self.instrument is None:
             raise(RuntimeError,'An instrument needs to be specified!!')    
         if not (self.instrument in self.allowed_instruments):
-            raise(RuntimeError,'instrument %s not in %s' % (self.instrument,' '.join(self.allowed_instruments)))   
+            raise(RuntimeError,'instrument %s not in %s' % (self.instrument,' '.join(self.allowed_instruments))) 
+        
         return(0)
 
-    def loadreadoutpatterntable(self):        
+    def calc_t_MIRI(self,readout,Ngroups,Nint,Nexp):
+        tgroup = self.MIRI_tgroup_sec[readout.lower()]
+        tint = Ngroups*tgroup*Nint
+        texp = tint*Nexp
+        return(tint,texp)
+    
+    def calcMIRIexptimes(self,readout='FAST',tmin=None,tmax=10000.0):
+        # header of table
+        pattern2exptime['miri']='Readout\tNGROUP\tNINT\ttint\tNEXP\ttexp\n'
+
+        #initialize
+        Ngroups_tot = self.MIRI_Ng_absmin        
+        Nint=1
+
+        # set to zero for 'while' condition
+        texp=0
+        while texp<tmax:
+            # how many exposures assuming desired minimum # of groups?
+            Nexp = int(Ngroups_tot/self.MIRI_Ng_min)
+            # If the # of exposures is 1 or smaller, then use self.MIRI_Ng_absmin
+            if Nexp<2:
+                Nexp = int(Ngroups_tot/self.MIRI_Ng_absmin)
+                # We want to stick with 2 exposures, no reason to go to more 
+                # exposures with such a small # of groups per integration
+                if Nexp>2: Nexp=2
+            else:
+                # avoid Nexp=3, bad dither pattern
+                if Nexp==3: Nexp=4
+            
+            # If it's more than self.MIRI_max_Nexp exposures, stick with self.MIRI_max_Nexp
+            if Nexp>self.MIRI_max_Nexp:
+                Nexp = self.MIRI_max_Nexp
+               
+            # get the number of groups per integration
+            Ngroups = int(Ngroups_tot/(Nint*Nexp))
+
+            if Ngroups>self.MIRI_Ng_max:
+                Nint+=1
+                Ngroups = int(Ngroups_tot/(Nint*Nexp))
+            
+            # only go for integer steps!
+            if Ngroups*Nint*Nexp!=Ngroups_tot:
+                Ngroups_tot+=1
+                continue
+            
+            # as default, use this entry
+            useflag=True
+
+            # check for 'mod' if specified.
+            if not(self.MIRI_Ngroups_modval is None):
+                if (Ngroups % self. MIRI_Ngroups_modval) != 0:
+                    useflag=False
+                    
+            #calculate integration and exposure times
+            (tint,texp)=self.calc_t_MIRI(readout,Ngroups,Nint,Nexp)
+            
+            # check for limits
+            if not(tmin is None) and (texp<tmin):useflag=False
+            if not(tmax is None) and (texp>tmax):useflag=False
+
+            # add the line to the string
+            if useflag: pattern2exptime['miri']+='%s\t%d\t%d\t%.1f\t%d\t%.1f\n' % (readout,Ngroups,Nint,tint,Nexp,texp)
+
+            Ngroups_tot+=(Nexp*Nint)
+        
+        # parse the string into pdastro
         self.t = pd.read_csv(io.StringIO(pattern2exptime[self.instrument]),delim_whitespace=True,skipinitialspace=True)
+        self.write()
+                                  
+        
+        #while texp < self.MIRI_max_tint 
+
+    def loadreadoutpatterntable(self,instrument):
+        if self.instrument=='nircam':     
+            self.t = pd.read_csv(io.StringIO(pattern2exptime[self.instrument]),delim_whitespace=True,skipinitialspace=True)
+        elif self.instrument=='miri':
+            self.t = self.calcMIRIexptimes()
         return(0)
 
     def getinfo(self,index):
@@ -133,7 +233,9 @@ class readoutpatternclass(pdastroclass):
         
 
 if __name__ == '__main__':
-    readoutpattern=readoutpatternclass('nircam')
+    readoutpattern=readoutpatternclass('miri')
+    
+    sys.exit(0)
     
     print(readoutpattern.t)
     index = readoutpattern.index4closestexptime(20000)
