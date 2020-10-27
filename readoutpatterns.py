@@ -450,7 +450,7 @@ class readoutpatternclass(pdastroclass):
     def getinfo(self,index):
         if index == None:
             return(None)
-        if (self.instrument == 'nircam') | (self.instrument == 'nirspec'):
+        if self.instrument in ['nircam','nirspec','miri']:
             info = {'readout_pattern':self.t.at[index,'Readout'].lower(),
                     'NGROUP':self.t.at[index,'NGROUP'],
                     'NINT':self.t.at[index,'NINT'],
@@ -458,7 +458,7 @@ class readoutpatternclass(pdastroclass):
                     'NEXP':self.t.at[index,'NEXP'],
                     'texp':self.t.at[index,'texp']}
         else:
-            raise (RuntimeError,'instrument %s not yet implemented!' % self.instrument)
+            raise RuntimeError('instrument %s not yet implemented!' % self.instrument)
         return(info)
                     
 
@@ -528,8 +528,6 @@ class readoutpatternclass(pdastroclass):
 
 if __name__ == '__main__':
     readoutpattern=readoutpatternclass('miri')
-    
-    sys.exit(0)
     
     print(readoutpattern.t)
     index = readoutpattern.index4closestexptime(20000)
