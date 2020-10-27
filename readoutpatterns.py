@@ -151,12 +151,18 @@ class readoutpatternclass(pdastroclass):
             self.t = pd.read_csv(io.StringIO(pattern2exptime[self.instrument]),delim_whitespace=True,skipinitialspace=True)
         elif self.instrument=='miri':
             self.t = self.calcMIRIexptimes()
+        elif self.instrument == 'nirspec':
+            path = os.path.dirname(os.path.abspath(__file__))
+            file = os.path.join(path,'data/nirspecpattern2exptime.csv')
+            self.t = pd.read_csv(path)
+        else:
+            raise RuntimeError("instrument %s not yet implemented!" % self.instrument)
         return(0)
 
     def getinfo(self,index):
         if index == None:
             return(None)
-        if self.instrument == 'nircam':
+        if (self.instrument == 'nircam') | (self.instrument == 'nirspec'):
             info = {'readout_pattern':self.t.at[index,'Readout'].lower(),
                     'NGROUP':self.t.at[index,'NGROUP'],
                     'NINT':self.t.at[index,'NINT'],

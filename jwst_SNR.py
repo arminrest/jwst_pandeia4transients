@@ -177,7 +177,7 @@ class jwst_SNRclass:
         self.lambkg4ETC = self.background4jwst.lambkg4ETC(percentile,**kwargs)
         return(0)
 
-    def Imaging_SNR(self, filt, mag, exptime, lambkg4ETC=None):
+    def Imaging_SNR(self, filt, mag, exptime, lambkg4ETC=None,spectrum=None):
         """
         Parameters
         ----------
@@ -217,6 +217,13 @@ class jwst_SNRclass:
         self.pandeiacfg['configuration']['instrument']['filter'] = filt.lower()
         self.pandeiacfg['scene'][0]['spectrum']['normalization']['norm_flux'] = mag
         self.pandeiacfg['scene'][0]['spectrum']['normalization']['norm_fluxunit'] = 'abmag'
+        if spectrum is not None:
+            # spectrum needs to be 
+            self.spec.convert('micron')
+            self.spec.convert('flam')
+            self.pandeiacfg['scene'][0]['spectrum']['sed']['sed_type'] = 'input'
+            self.pandeiacfg['scene'][0]['spectrum']['sed']['spectrum'] = [spectrum.wave,spectrum.flux]
+            self.pandeiacfg['scene'][0]['spectrum']['sed']['unit'] = 'flam'
 
         # mode and aperture
         (mode,aperture)=self.determine_imaging_mode_and_aperture(filt)
