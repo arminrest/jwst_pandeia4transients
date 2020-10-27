@@ -205,7 +205,7 @@ class jwst_SNRclass:
         if self.verbose>2: print('Calculating SNR for filter:%s mag:%f, exptime:%f' % (filt, mag, exptime))
 
         if lambkg4ETC is None:
-            if self.verbose>2: print('Using saved lambbkg4ETC')
+            if self.verbose>2: print('Using saved lambkg4ETC')
             lambkg4ETC=self.lambkg4ETC
         if lambkg4ETC is None:
             print('!!!!!!!!!!!!!!!\n!!!WARNING!!!!!\n!!!!!!!!!!!!!!!\nNo background specified, calculating SNR WITHOUT background!!')
