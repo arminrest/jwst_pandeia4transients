@@ -17,6 +17,8 @@ from astropy import units as u
 from astropy.cosmology import WMAP9 as cosmo 
 from astropy.coordinates import Distance
 from astropy import units as u
+from background4jwst import background4jwstclass
+from pandeia.engine.calc_utils import build_default_calc  # or alternatively, load ETC calculation parameters
 
 package_directory = os.path.dirname(os.path.abspath(__file__))
 
@@ -28,7 +30,8 @@ class NIRSpec_SN(object):
 
     Important:
         ref_wave must be provided, wavelength the SN is calculated at
-        a spectrum must be provided.
+        A spectrum must be provided.
+        The distance is measured in Mpc
 
     Note:
         The spectrum input units should be microns for wavelength and mJy for flux.
@@ -63,33 +66,64 @@ class NIRSpec_SN(object):
     """
     def __init__(self,ref_wave=None,av=None,dist=None,
                  z=None,
-                 grating='prism',filt='clear',
+                 grating='prism',filt=None,
                  read_mode='nrsirs2rapid',mode='fixed_slit',
                  spectrum = None,exptime=None):
+
         self.grating = grating.lower() # grating name
         self.Check_grating()
-        self.filter = filt # filter name
+        if filt is None:
+            self.Assign_filter() # filter name
+        else:
+            self.filter = filt # filter name
         self.ngroups = None # number of frame groups
         self.nint = 1 # Number of integrations
         self.nexp = 4 # Number of exposures
         self.mode = mode # Spectrograph observation mode
         self.read_mode = read_mode # readout mode
         self.exp_time = exptime # Desired exposure time
-        self.imgr_data = None 
+        self.pandeiacfg = None 
         self.mag = None
-        self.SN = None # signal to nosie 
-        self.ref_wave = ref_wave # reference wavelength in mirons
+        self.ref_filter = 'f200w'
+        self.ref_sn = None # signal to nosie 
+
+        if ref_wave is not None:
+            self.ref_wave = ref_wave # reference wavelength in mirons
+        else:
+            self.ref_wave = 2 # reference wavelength in miron
+        self.ref_filter
         self.av = av # v band extinction
         self.dist = dist
         self.z = z
 
-        if spectrum is not None:
-            self.wave = spectrum[0,:]
-            self.flux = spectrum[1,:]
-        else:
-            self.wave = None
-            self.flux = None
-        
+        self.spec = spectrum
+        self.background4jwst = background4jwstclass()
+        self.lambkg4ETC = None
+        # calculated by pandeia
+        self.calc_flux = None # units e-/s
+        self.calc_wave = None # units micron
+        self.calc_err = None  # units e-/s
+        self.calc_sn = None   # singal to noise of full spec
+        self.calc_exp = None
+    
+    def Assign_filter(self):
+        grating = self.grating
+        if (grating == 'g140h') | (grating == 'g140m'):
+            message = ('2 filters available: f070lp, or f100lf \n' +
+                        'Assigning f070lp')
+            warnings.warn(message)
+            filt  = 'f070lp'
+
+        elif (grating == 'g235h') | (grating == 'g235m'):
+            filt = 'f170lp'
+        elif (grating == 'g395h') | (grating == 'g395m'):
+            filt = 'f290lp'
+        elif grating == 'prism':
+            filt = 'clear'
+        self.filter = filt
+
+
+
     def Check_grating(self):
         """
         Check to see if the input grating value is a valid option
@@ -101,7 +135,7 @@ class NIRSpec_SN(object):
                 return 
         message = ('No such grating available, please choose from:\n'
                    + 'prism\n g140h\n g140m\n g235h\n g235m\n g395h\n g395m')
-        raise(ValueError, mesage)
+        raise(ValueError, message)
         
     def Check_filter(self):
         """
@@ -114,7 +148,7 @@ class NIRSpec_SN(object):
                 return 
         message = ('No such filter available, please choose from:\n'
                    + 'clear\n f070lp\n f100lp\n f110w\n f140x\n f170lp\n f290lp')
-        raise(ValueError, mesage)
+        raise(ValueError, message)
     
     def Check_read_mode(self):
         """
@@ -127,19 +161,19 @@ class NIRSpec_SN(object):
                 return 
         message = ('No such readout mode available, please choose from:\n'
                    + 'nrsrapid\n nrsrapidd6\n nrs\n nrsirs2rapid\n nrsirs2')
-        raise(ValueError, mesage)
+        raise(ValueError, message)
     
     def Check_mode(self):
         """
         Check to see if the input mode value is a valid option
         """
-        allowed = ['fixed_slit']
+        allowed = ['fixed_slit','ifu']
         for i in range(len(allowed)):
             if self.mode == allowed[i]:
                 return 
         message = ('No such mode available, please choose from:\n'
-                   + 'fixed_slit\n ')
-        raise(ValueError, mesage)
+                   + 'fixed_slit\n ifu\n')
+        raise(ValueError, message)
 
     def Check_exposure_time(self):
         """
@@ -147,7 +181,7 @@ class NIRSpec_SN(object):
         """
         if self.exp_time is None:
             message = "Exposure time can't be None"
-            raise(ValueError, mesage)
+            raise(ValueError, message)
         #if (type(self.exp_time) != float) & (type(self.exp_time) !=int):
         #   print(type(self.exp_time))
         #   message = "Exposure time must be either a float or int"
@@ -222,7 +256,7 @@ class NIRSpec_SN(object):
             messae += 'Number of exposures must be defined\n'
         if self.read_mode is None:
             message += 'Read mode must be defined\n'
-        if self.wave is None:
+        if self.spec is None:
             message += 'No spectrum provided\n'
         if self.ref_wave is None:
             message += 'No reference wavelength specified (ref_wave = None)\n'
@@ -241,9 +275,18 @@ class NIRSpec_SN(object):
         back_lam = table.field('wavelength')
         back_all =  (table.field('background') + table.field('thermal') + 
                      table.field('straylight') + table.field('infield'))
-        self.imgr_data['background'] = [list(back_lam),list(back_all)]
+        self.pandeiacfg['background'] = [list(back_lam),list(back_all)]
         return
     
+    def Normalise_spec(self):
+        imgr_data = self.imgr_data
+        imgr_data['scene'][0]['spectrum']["normalization"] = {}
+        imgr_data['scene'][0]['spectrum']["normalization"]["bandpass"]= "nircam,sw_imaging," + self.ref_filt
+        imgr_data['scene'][0]['spectrum']["normalization"]["norm_flux"] = self.mag
+        imgr_data['scene'][0]['spectrum']["normalization"]["norm_fluxunit"] =  "abmag"
+        imgr_data['scene'][0]['spectrum']["normalization"]["type"] = "jwst"
+        self.imgr_data = imgr_data
+
     def Make_config(self):
         """
         Put the configuration data into the format expected by Pandeia, 
@@ -253,25 +296,36 @@ class NIRSpec_SN(object):
             self.NIRSpec_exp_2_groups()
 
         self.Check_all_fields()
-        jf = os.path.join(package_directory,'data/nirspec_fs_default.json')
-        with open(jf) as f:
-            imgr_data = json.load(f)   # this is a python dictionary
+        if self.pandeiacfg is None:
+            self.pandeiacfg = build_default_calc('jwst','nirspec','fixed_slit')
+        
 
-        imgr_data['configuration']['detector']['ngroup'] = self.ngroups
-        imgr_data['configuration']['detector']['nint'] = self.nint
-        imgr_data['configuration']['detector']['nexp'] = self.nexp
-        imgr_data['configuration']['instrument']['mode'] = self.mode
-        imgr_data['configuration']['instrument']['filter'] = self.filter
-        imgr_data['configuration']['instrument']['disperser'] = self.grating
-        imgr_data['configuration']['detector']['readout_pattern'] = self.read_mode
+        self.pandeiacfg['configuration']['detector']['ngroup'] = self.ngroups
+        self.pandeiacfg['configuration']['detector']['nint'] = self.nint
+        self.pandeiacfg['configuration']['detector']['nexp'] = self.nexp
+        self.pandeiacfg['configuration']['instrument']['mode'] = self.mode
+        self.pandeiacfg['configuration']['instrument']['filter'] = self.filter
+        self.pandeiacfg['configuration']['instrument']['disperser'] = self.grating
+        self.pandeiacfg['configuration']['detector']['readout_pattern'] = self.read_mode
+        self.pandeiacfg['configuration']['detector']['subarray'] = 'full'
         
-        imgr_data['scene'][0]['spectrum']['sed']['spectrum'] = [self.wave, self.flux]
-        imgr_data['strategy']['reference_wavelength'] = self.ref_wave
+        self.spec.convert('micron')
+        self.spec.convert('mJy')
+        self.pandeiacfg['scene'][0]['spectrum']['sed']['sed_type'] = 'input'
+        self.pandeiacfg['scene'][0]['spectrum']['sed']['spectrum'] = [self.spec.wave,self.spec.flux]
+        self.pandeiacfg['scene'][0]['spectrum']['sed']['unit'] = 'flam'
+
         if self.mag is not None:
-            imgr_data['scene'][0]['spectrum']['normalization']['norm_flux'] = self.mag
-        
-        self.imgr_data = imgr_data
-        self.Get_background()
+            self.pandeiacfg['scene'][0]['spectrum']['normalization']['type'] = 'jwst'
+            self.pandeiacfg['scene'][0]['spectrum']['normalization']['bandpass'] = 'nircam,sw_imaging,' + self.ref_filter
+            self.pandeiacfg['scene'][0]['spectrum']['normalization']['norm_flux'] = self.mag
+            self.pandeiacfg['scene'][0]['spectrum']['normalization']['norm_fluxunit'] = 'abmag'
+        else:
+            self.pandeiacfg['scene'][0]['spectrum']['normalization']['type'] = 'none'
+
+                            
+        #imgr_data['scene'][0]['spectrum']['normalization']['norm_flux'] = self.mag
+        self.pandeiacfg['background'] = self.lambkg4ETC
         return
     
     def Pattern_select(self):
@@ -285,7 +339,20 @@ class NIRSpec_SN(object):
             self.read_mode = 'nrsirs2'
         return
     
-    def Calculate_SN(self,exptime=None,ngroup= None):
+    def SN_for_wavelength(self,wave=None):
+        if wave is not None:
+            self.ref_wave = wave
+        ind = np.argmin(abs(self.calc_wave - self.ref_wave))
+        if abs(self.calc_wave - self.ref_wave) > .1:
+            raise(ValueError,'reference wavelength not in wavelength range')
+        return self.calc_sn[ind]
+
+
+    def Max_SN(self):
+        return np.nanmax(self.calc_sn)
+
+
+    def Calculate_SN(self,exptime=None,ngroups= None,target=None,bkgpercentile=50):
         """
         Calculate the signal to noise of the provided spectrum under the 
         given instrument configuration.
@@ -294,40 +361,35 @@ class NIRSpec_SN(object):
         ------
             exptime : float 
                 total exposure time, degenerate with ngroup
-            ngroup : int
+            ngroups : int
                 total number of groups, degenerate with exptime
 
         Outputs
         -------
-            self.SN : float
+            self.ref_sn : float
                 Calculated signal to noise 
             real_t : float
                 total exposure time as calculated by Pandeia 
                 for the given configuration
 
         """
-        if (exptime is not None) & (ngroup is None):
+        if (exptime is not None) & (ngroups is None):
             self.exp_time = exptime
-            self.ngroup = None
-        elif (exptime is None) & (ngroup is not None):
-            self.ngroups = ngroup
-        #else:
-        #   raise ValueError('define either exptime OR ngroup')
-        #if (self.exp_time is not None) :
-            #self.NIRSpec_exp_2_groups
-            #self.Pattern_select()
-            #print(self.exptime)
-            #self.NIRSpec_exp_2_groups()
-        #print(self.exp_time)
+            self.ngroups = None
+        elif (exptime is None) & (ngroups is not None):
+            self.ngroups = ngroups
+        
+        self.set_background4jwst(bkgpercentile,target='EmptyERS')
         self.Make_config()
         #rint('calculate sn ng ',self.ngroups)
-        results = perform_calculation(self.imgr_data)   # results is a dictionary
-        self.SN = results['scalar']['sn']
-        real_t = results['scalar']['total_exposure_time']
-        #if real_t> 
-        #print('exp',real_t)
-        #print(self.SN)
-        return self.SN, real_t
+        results = perform_calculation(self.pandeiacfg)   # results is a dictionary
+        self.calc_flux = results['1d']['extracted_flux'][1]
+        self.calc_wave = results['1d']['extracted_flux'][0]
+        self.calc_err = results['1d']['extracted_noise'][1]
+        self.calc_sn = results['1d']['sn'][1] # S/N for full spectrum
+        self.ref_sn = results['scalar']['sn'] # S/N for reference wavelength
+        self.calc_exp = results['scalar']['total_exposure_time']
+        return 
     
     
     def SN_minimise(self,groups,target_sn):
@@ -336,13 +398,12 @@ class NIRSpec_SN(object):
         """
         #print('groups ',groups)
         self.ngroups = groups
-        SN,_ = self.Calculate_SN()
-        #print('sncalc ',SN)
-        #print(abs(SN-target_sn))
+        self.Calculate_SN()
+        SN = self.SN_for_wavelength()
         res = abs(SN-target_sn)
         if res <= 0.2:
             res = 0
-        #print('residual ',res)
+
         return res
     
     def Calculate_exposure_for_SN(self,SN,verbose=False):
@@ -405,10 +466,11 @@ class NIRSpec_SN(object):
         diff = target
         while (diff > lim) & (g < maxiter):
             self.ngroups = g
-            sn,t = self.Calculate_SN()
+            self.Calculate_SN()
+            SN = self.SN_for_wavelength()
             diff = target - sn
             g += 1
-        return g, t
+        return g, self.calc_exp
 
     def Redden_spec(self,av=None):
         """
@@ -424,12 +486,18 @@ class NIRSpec_SN(object):
             self.av = av
 
         if self.av is not None:
-            wav = self.wave * 1e4 # convert to Angstrom for extinction
-            red = apply(fitzpatrick99(wav.astype('double'),self.av,3.1),self.flux)
-            self.flux = red
+            self.spec.convert('Angstrom')
+            wav = self.spec.wave # convert to Angstrom for extinction
+            red = apply(fitzpatrick99(wav.astype('double'),self.av,3.1),self.spec.flux)
+            self.spec = S.ArraySpectrum(spec.wave,red,waveunits=spec.waveunits,
+                                        fluxunits=spec.fluxunits)
         return
 
-    def Distance_scale(self,dist=None,z=None):
+    def Distance_modulus(self,apparent,absolute):
+        d = 10**((apparent - absolute + 5)/5) /1e6
+        self.dist = d
+
+    def Distance_scale(self,dist=None,z=None,apparent=None):
         """
         Scales and redshifts the spectrum to the given distance/redshift.
 
@@ -447,6 +515,11 @@ class NIRSpec_SN(object):
             self.z = z
             self.dist = None
 
+        #if apparent is not None:
+        #    self.mag = apparent
+
+        #self.Distance_modulus(self.mag,-19)
+
         dt = self.dist is not None
         zt = self.z is not None
         if dt & zt:
@@ -454,30 +527,105 @@ class NIRSpec_SN(object):
             dt = False
         if dt & ~zt:
             d = Distance(self.dist,unit=u.Mpc)
+            self.dist = d
             try:
                 self.z = d.compute_z(cosmo)
             except:
                 self.z = 0 
 
+
         elif zt & ~dt:
-            self.dist = cosmo.luminosity_distance(self.z).to(u.Mpc).value
+            self.dist = cosmo.luminosity_distance(self.z).to(u.Mpc)
 
         if self.dist > 0:
-            self.flux = self.flux * (10/(self.dist*1e6))**2 # original spectral distance 10pc
-
-
-            spec = S.ArraySpectrum(self.wave, self.flux, waveunits='micron',fluxunits='mjy')
+            flux = self.spec.flux * (10/(self.dist.to('pc').value))**2 # original spectral distance 10pc
+            
+            spec = S.ArraySpectrum(self.spec.wave, flux, 
+                                    waveunits=self.spec.waveunits,fluxunits=self.spec.fluxunits)
             spec = spec.redshift(self.z)
 
             spec.convert('micron')
-            spec.convert('mjy')
-
-            self.wave = spec.wave
-            self.flux = spec.flux
-
+            spec.convert('flam')
+            
+            self.spec = spec            
         return
 
 
 
+    def Random_realisation(self):
+        flux = self.calc_flux
+        wave = self.calc_wave
+        error = self.calc_err
+
+        noise = np.random.normal(0,error)
+
+        random_noise = np.zeros((2,len(wave)))
+        random_noise[0,:] = wave
+        random_noise[1,:] = flux + noise
+
+        return random_noise
 
 
+    def initialize_pandeia(self,instrument,mode,ETCjsonfile=None):
+        print('Initializing pandeia with %s, %s' % (instrument,mode))
+        instrument = instrument.lower()
+        mode = mode.lower()
+        if not (instrument in self.allowed_instruments):
+            raise(RuntimeError,'instrument %s not in %s' % (instrument,' '.join(self.allowed_instruments)))
+        self.readoutpattern=readoutpatternclass(instrument)
+        if ETCjsonfile is None:
+            self.pandeiacfg=build_default_calc('jwst',instrument,mode)
+        else:
+            with open(ETCjsonfile) as f:  # use a json file you have
+                 self.pandeiacfg = json.load(f)
+        return(0)
+
+    def Simulate_spec(self,exp,dist=None,redshift=None,av=None,mag=None,norm_filt=None):
+        
+        self.exp_time = exp
+        self.dist=dist
+        self.z = redshift
+        self.av = av
+        self.mag = mag
+        self.norm_filt = norm_filt
+
+        if (dist is None) & (redshift is None):
+            warnings.warn('No distance specified')
+        else:
+            self.Distance_scale()
+        if av is not None:
+            self.Redden_spec()
+
+        self.Calculate_SN()
+
+        rand = self.Random_realisation()
+        return rand
+
+    def set_background4jwst(self,percentile,**kwargs):
+        """
+
+        Parameters
+        ----------
+        percentile : TYPE
+            DESCRIPTION.
+        **kwargs : TYPE
+            optional arguments that get passed to background4jwst.lambkg4ETC:
+                lam : float, optional
+                    Input wavelength for the pandeia 'background' routine. 
+                    If None, the default value of self.lam is used
+                thresh : float, optional
+                    Input threshold for the pandeia 'background' routine. 
+                    If None, the default value of self.thresh is used
+                lam4percentile : float, optional
+                    wavelength for which the percentiles are calculated for. 
+                    If None, the default value of self.lam4percentile is used
+                target: string, optional
+                    if specified, the RA,Dec is set to the target. 
+                    Target must be part of self.defaulttargets
+        Returns
+        -------
+        None.
+
+        """
+        self.lambkg4ETC = self.background4jwst.lambkg4ETC(percentile,**kwargs)
+        return(0)
