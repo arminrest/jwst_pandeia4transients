@@ -100,6 +100,43 @@ Readout  NGROUP  NINT   tint  NEXP    texp
    FAST     300     3  832.5     4  9990.0
 """
 
+pattern2exptime['nirspec'] ="""
+Readout NGROUP  NINT    tint    NEXP    texp
+nrsirs2rapid    4   1   58.4    4   233.4
+nrsirs2rapid    8   1   116.7   4   466.8
+nrsirs2rapid    12  1   175.1   4   700.3
+nrsirs2rapid    16  1   233.4   4   933.7
+nrsirs2rapid    20  1   291.8   4   1167.1
+nrsirs2rapid    24  1   350.1   4   1400.5
+nrsirs2rapid    28  1   408.5   4   1634.0
+nrsirs2rapid    32  1   466.8   4   1867.4
+nrsirs2rapid    36  1   525.2   4   2100.8
+nrsirs2rapid    40  1   583.6   4   2334.2
+nrsirs2rapid    44  1   641.9   4   2567.7
+nrsirs2rapid    48  1   700.3   4   2801.1
+nrsirs2rapid    52  1   758.6   4   3034.5
+nrsirs2rapid    56  1   817.0   4   3267.9
+nrsirs2rapid    60  1   875.3   4   3501.4
+nrsirs2rapid    64  1   933.7   4   3734.8
+nrsirs2rapid    68  1   992.1   4   3968.2
+nrsirs2rapid    72  1   1050.4  4   4201.6
+nrsirs2rapid    76  1   1108.8  4   4435.1
+nrsirs2rapid    80  1   1167.1  4   4668.5
+nrsirs2rapid    84  1   1225.5  4   4901.9
+nrsirs2rapid    88  1   1283.8  4   5135.3
+nrsirs2rapid    92  1   1342.2  4   5368.8
+nrsirs2rapid    96  1   1400.5  4   5602.2
+nrsirs2rapid    100 1   1458.9  4   5835.6
+nrsirs2rapid    52  2   758.6   4   6069.0
+nrsirs2rapid    56  2   817.0   4   6535.9
+nrsirs2rapid    60  2   875.3   4   7002.7
+nrsirs2rapid    64  2   933.7   4   7469.6
+nrsirs2rapid    68  2   992.1   4   7936.4
+nrsirs2rapid    72  2   1050.4  4   8403.3
+nrsirs2rapid    76  2   1108.8  4   8870.1
+nrsirs2rapid    80  2   1167.1  4   9337.0
+nrsirs2rapid    84  2   1225.5  4   9803.8
+"""
 class readoutpatternclass(pdastroclass):
     def __init__(self,instrument):
         pdastroclass.__init__(self)
@@ -109,6 +146,8 @@ class readoutpatternclass(pdastroclass):
         self.tgroup_sec = {}
         # MIRI FAST readout tgroup
         self.tgroup_sec['fast']=2.775
+        # NIRSpec nrsirs2rapid readout tgroup
+        self.tgroup_sec['nrsirs2rapid']=14.589
         
         self.allowed_instruments = ['nircam','niriss','nirspec','miri']
         self.loadreadoutpatterntable(instrument)
@@ -167,6 +206,34 @@ class readoutpatternclass(pdastroclass):
                                     Nexp_max=Nexp_max,Ngroups_modval=Ngroups_modval,tmin=tmin,tmax=tmax)
         return(result)
         
+    def calc_NIRSpec_exptimes(self,
+                           filename=None,
+                           # https://jwst-docs.stsci.edu/near-infrared-spectrograph/nirspec-observing-strategies/nirspec-detector-recommended-strategies#NIRSpecDetectorRecommendedStrategies-groups
+                           # recommended, but not required is min=40 and max = 360 groups
+                           Ng_min=4,Ng_max=100, 
+                           Ng_absmin=10,
+                           # 4 point dither desired
+                           Nexp_max=4,
+                           # if Ngroups_modval != None: only keep entries for which 
+                           # Ngroups % Ngroups_modval == 0
+                           # This reduces the # of entries in the table.
+                           Ngroups_modval = 4,
+                           tmin=None,tmax=10000.0):
+        """
+        same as calc_exptimes() but with good default values for MIRI
+
+        https : //jwst-docs.stsci.edu/mid-infrared-instrument/miri-observing-strategies/miri-imaging-recommended-strategies#MIRIImagingRecommendedStrategies-Dwelltimelimit                           # recommended
+        #  recommended, but not required is min = 40 and max = 360 groups
+ 
+        Returns
+        -------
+        None.
+        self.t contains the table
+
+        """
+        result = self.calc_exptimes('nirspec','nrsirs2rapid',filename=filename,Ng_min=Ng_min,Ng_max=Ng_max,Ng_absmin=Ng_absmin,
+                                    Nexp_max=Nexp_max,Ngroups_modval=Ngroups_modval,tmin=tmin,tmax=tmax)
+        return(result)
 
     def calc_exptimes(self,instrument,readout,
                       filename=None,
@@ -348,12 +415,8 @@ class readoutpatternclass(pdastroclass):
 
     def loadreadoutpatterntable(self,instrument):
         self.set_instrument(instrument)
-        if self.instrument in ['nircam','miri']:     
+        if self.instrument in ['nircam','miri','nirspec']:     
             self.t = pd.read_csv(io.StringIO(pattern2exptime[self.instrument]),delim_whitespace=True,skipinitialspace=True)
-        elif self.instrument == 'nirspec':
-            path = os.path.dirname(os.path.abspath(__file__))
-            file = os.path.join(path,'data/nirspecpattern2exptime.csv')
-            self.t = pd.read_csv(path)
         else:
             raise RuntimeError("instrument %s not yet implemented!" % self.instrument)
         return(0)
