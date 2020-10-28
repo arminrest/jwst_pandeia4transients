@@ -146,8 +146,11 @@ class jwst_SNRclass:
             lam = int(filt[1:4]) / 100.
             aperture = 'sw lw'.split()[lam > 2.4]
             mode = aperture+'_imaging'
+        elif instrument.lower() == 'nirspec':
+            mode = 'fixed_slit'
+            aperture = 's200a1'
         else:
-             raise RuntimeError("instrument %s is not allowed, only nircam, niriss, and miri" % (instrument))
+             raise RuntimeError("instrument %s is not allowed, only nircam, niriss, miri, and nirspec" % (instrument))
            
         return(mode,aperture)    
 
@@ -223,7 +226,7 @@ class jwst_SNRclass:
         if spectrum is not None:
             # spectrum needs to be 
             self.spec.convert('micron')
-            self.spec.convert('flam')
+            self.spec.convert('mJy')
             self.pandeiacfg['scene'][0]['spectrum']['sed']['sed_type'] = 'input'
             self.pandeiacfg['scene'][0]['spectrum']['sed']['spectrum'] = [spectrum.wave,spectrum.flux]
             self.pandeiacfg['scene'][0]['spectrum']['sed']['unit'] = 'flam'
@@ -301,6 +304,8 @@ class jwst_SNRclass:
             pwlindex = 9/8
         elif instrument=='miri':
             pwlindex = 16/8
+        #elif instrument == 'nirspec':
+        #    pwlindex = 16/8 # need to work this out
         else:
             raise RuntimeError('instrment %s not yet implemented!' % instrument)
             
