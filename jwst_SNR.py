@@ -10,6 +10,7 @@ some definitions based on Dan Coe's jupyter notebooks:
 
 """
 import numpy as np
+import matplotlib.pyplot as plt
 import math
 import sys,socket,os,re
 import pandas as pd
@@ -32,19 +33,21 @@ class jwst_SNRclass:
     def __init__(self,instrument='nircam',mode=None,ETCjsonfile=None):
         self.verbose = 0
         self.allowed_instruments = ['nircam','nirspec','niriss','miri']
-
+        self.instrument = instrument
         # initialization
         self.initialize_pandeia(instrument,mode=mode,ETCjsonfile=ETCjsonfile)
 
         # set apertures
         # pandeia default values: 0.1" NIRCam, 0.3" MIRI
         self.aperture_radii = {}
-        self.set_apertures({'nircam_sw_imaging':0.08, 'nircam_lw_imaging':0.16, 'niriss':0.16, 'miri':0.3})
+        self.set_apertures({'nircam_sw_imaging':0.08, 'nircam_lw_imaging':0.16, 
+                            'niriss':0.16, 'miri':0.3,'nirspec':0.15})
         
         # set sky_annulus
         # pandeia default values: 0.22" - 0.4"
         self.sky_annulii = {}
-        self.set_sky_annulus({'nircam_sw_imaging':(0.6, 0.99), 'nircam_lw_imaging':(0.6, 0.99), 'niriss':(0.6, 0.99), 'miri':(0.6, 0.99)})
+        self.set_sky_annulus({'nircam_sw_imaging':(0.6, 0.99), 'nircam_lw_imaging':(0.6, 0.99), 
+                                'niriss':(0.6, 0.99), 'miri':(0.6, 0.99),'nirspec':(0.3,0.5)})
         
 
         self.background4jwst = background4jwstclass()
@@ -67,7 +70,7 @@ class jwst_SNRclass:
             if not(s in d):
                 raise RuntimeError('Could not find %s as a key' % (s))
             val = d[s]
-        elif instrument in ['niriss','miri']:
+        elif instrument in ['niriss','miri','nirspec']:
             if not(instrument in d):
                 raise RuntimeError('Could not find instrument=%s as a key' % (instrument))
             val = d[instrument]
@@ -146,8 +149,11 @@ class jwst_SNRclass:
             lam = int(filt[1:4]) / 100.
             aperture = 'sw lw'.split()[lam > 2.4]
             mode = aperture+'_imaging'
+        elif instrument.lower() == 'nirspec':
+            mode = 'fixed_slit'
+            aperture = 's200a1'
         else:
-             raise RuntimeError("instrument %s is not allowed, only nircam, niriss, and miri" % (instrument))
+             raise RuntimeError("instrument %s is not allowed, only nircam, niriss, miri, and nirspec" % (instrument))
            
         return(mode,aperture)    
 
@@ -180,7 +186,7 @@ class jwst_SNRclass:
         self.lambkg4ETC = self.background4jwst.lambkg4ETC(percentile,**kwargs)
         return(0)
 
-    def Imaging_SNR(self, filt, mag, exptime, lambkg4ETC=None,spectrum=None):
+    def Imaging_SNR(self, filt, mag, exptime, lambkg4ETC=None,spec=None,**kwargs):
         """
         Parameters
         ----------
@@ -205,7 +211,7 @@ class jwst_SNRclass:
 
         """
         
-        if self.verbose>2: print('Calculating SNR for filter:%s mag:%f, exptime:%f' % (filt, mag, exptime))
+        if self.verbose>2: print('Calculating SNR for filter:%s mag:%f, exptime:%f \n' % (filt, mag, exptime))
 
         if lambkg4ETC is None:
             if self.verbose>2: print('Using saved lambkg4ETC')
@@ -217,15 +223,20 @@ class jwst_SNRclass:
         self.pandeiacfg['background'] = lambkg4ETC
 
         # Assign filter and magnitude
-        self.pandeiacfg['configuration']['instrument']['filter'] = filt.lower()
+        if self.instrument != 'nirspec':
+            self.pandeiacfg['configuration']['instrument']['filter'] = filt.lower()
+        else:
+            self.pandeiacfg['configuration']['detector']['subarray'] = 'full'
+        self.pandeiacfg['scene'][0]['spectrum']['normalization']['bandpass'] = 'nircam,sw_imaging,' + filt.lower()
         self.pandeiacfg['scene'][0]['spectrum']['normalization']['norm_flux'] = mag
         self.pandeiacfg['scene'][0]['spectrum']['normalization']['norm_fluxunit'] = 'abmag'
         if not(spectrum is None):
+            print('reference spec')
             # spectrum needs to be 
-            self.spec.convert('micron')
-            self.spec.convert('flam')
+            spec.convert('micron')
+            spec.convert('mJy')
             self.pandeiacfg['scene'][0]['spectrum']['sed']['sed_type'] = 'input'
-            self.pandeiacfg['scene'][0]['spectrum']['sed']['spectrum'] = [spectrum.wave,spectrum.flux]
+            self.pandeiacfg['scene'][0]['spectrum']['sed']['spectrum'] = [spec.wave,spec.flux]
             self.pandeiacfg['scene'][0]['spectrum']['sed']['unit'] = 'flam'
 
         # mode and aperture
@@ -240,19 +251,38 @@ class jwst_SNRclass:
         
         # Exposure specifications
         info = self.readoutpattern.info4closestexptime(exptime)
+        print('Ehu ',info)
         #print(info)
         for key in ['NEXP','NINT','NGROUP','readout_pattern']:
             self.pandeiacfg['configuration']['detector'][key.lower()] = info[key]
-            
+        
+
         # calculate SNR with pandeia
         self.ETCresults = perform_calculation(self.pandeiacfg)  
-        SNR = self.ETCresults['scalar']['sn']
-        total_exposure_time = self.ETCresults['scalar']['total_exposure_time']
         
+        if self.instrument=='nirspec':
+            SNR = self.Av_spec_SNR(**kwargs)
+        else:
+            SNR = self.ETCresults['scalar']['sn']
+        total_exposure_time = self.ETCresults['scalar']['total_exposure_time']
+        print('total texp ',total_exposure_time)
         if self.verbose>1: print('filter:%s mag:%.2f, target exptime:%.1f  == SNR=%.2f exptime=%.1f' % (filt, mag, exptime,SNR,total_exposure_time))
         return(SNR,total_exposure_time)
 
-    def texp4SNRatmag(self,filt,mag,SNR,lambkg4ETC=None,SNR_tolerance_in_percent=10.0):
+    def Av_spec_SNR(self,wave,width=0):
+        lam, snr = self.ETCresults['1d']['sn']
+        #plt.figure()
+        #plt.axvspan(wave-width,wave+width,alpha=.3,color='orange')
+        #plt.plot(lam,snr)
+
+        low = wave - width
+        high = wave + width
+        ind = (lam >= low) & (lam <= high)
+        av = np.nanmean(snr[ind])
+        return av
+
+    def texp4SNRatmag(self,filt,mag,SNR,lambkg4ETC=None,SNR_tolerance_in_percent=10.0,
+                        spec=None,**kwargs):
         """
         Parameters
         ----------
@@ -293,7 +323,7 @@ class jwst_SNRclass:
         if self.verbose: print('#############################\n#### Filter %s, mag %.2f for S/N=%.f \n#############################' % (filt,mag,SNR))
 
         texp0=1000
-        (SNR0, texp0) = self.Imaging_SNR(filt,mag,texp0,lambkg4ETC=lambkg4ETC)
+        (SNR0, texp0) = self.Imaging_SNR(filt,mag,texp0,lambkg4ETC=lambkg4ETC,spec=spec,**kwargs)        
         if self.verbose>1: print('SNR=%6.2f for starting texp=%6.1f' % (SNR0,texp0))
         
         instrument = self.get_instrument()
@@ -301,12 +331,15 @@ class jwst_SNRclass:
             pwlindex = 9/8
         elif instrument=='miri':
             pwlindex = 16/8
+        elif instrument == 'nirspec':
+            pwlindex = 2 
         else:
             raise RuntimeError('instrment %s not yet implemented!' % instrument)
             
       
         # guesstimate the best exposure time. The SNR theoretically goes with sqrt(t), 
         # thus t should go with SNR^2. However, it looks like the exponent is smaller than 2
+        
         texp_guess = texp0 * math.pow(SNR/SNR0,pwlindex)
         if self.verbose>1: print('texp guess: %.1f' % texp_guess)
         
@@ -317,13 +350,13 @@ class jwst_SNRclass:
             raise RuntimeError("BUG??? Cannot find any exposure time...")
             
             
-        (SNRnext,tnext) = self.Imaging_SNR(filt,mag,tnext,lambkg4ETC=lambkg4ETC)        
+        (SNRnext,tnext) = self.Imaging_SNR(filt,mag,tnext,lambkg4ETC=lambkg4ETC,spec=spec,**kwargs)        
         if self.verbose>1: print('SNR=%6.2f for next texp=%6.1f' % (SNRnext,tnext))
         
         (tlast,SNRlast)=(tnext,SNRnext)
         if SNRnext<=SNR:
             while (SNRnext<SNR):
-                if self.verbose>1: print('SNR=%6.2f<%.2f for texp=%6.1f, checking the next lower exptime...' % (SNRnext,SNR,tnext))
+                if self.verbose>1: print('SNR=%6.2f<%.2f for texp=%6.1f, checking the next larger exptime...' % (SNRnext,SNR,tnext))
                 #print('SNR=%6.2f for texp=%6.1f, SNR=%.2f wanted...' % (SNRnext,tnext,SNR))
                   
                 (tlast,SNRlast)=(tnext,SNRnext)
@@ -337,7 +370,7 @@ class jwst_SNRclass:
                     print('Warning: could not find an exposure time that is long enough to reach SNR=%.2f, only %.2f' % (SNR,SNRlast))
                     break
 
-                (SNRnext,tnext) = self.Imaging_SNR(filt,mag,tnext,lambkg4ETC=lambkg4ETC)        
+                (SNRnext,tnext) = self.Imaging_SNR(filt,mag,tnext,lambkg4ETC=lambkg4ETC,spec=spec,**kwargs)        
             if not(tnext is None):
                 if self.verbose: print('SNR=%6.2f>=%.2f for texp=%6.1f!! SUCCESS!' % (SNRnext,SNR,tnext))
             (tplus,SNRplus)=(tnext,SNRnext)
@@ -351,14 +384,14 @@ class jwst_SNRclass:
                  
                 # get the next smaller exposure time
                 tnext = self.readoutpattern.nextsmallestexptime(tnext-1.0)
-                
+                print('BLEH ',tnext)
                 # If this is the last index of the readoutpattern, and the SNR is still not big enough, return None and the last SNR possible
                 if (tnext is None):
                     SNRnext=None
                     print('Warning: could not find an exposure time that is short enough to be below SNR=%.2f, thus keeping texp=%.1f and SNR=%.2f' % (SNR,tlast,SNRlast))
                     break
-
-                (SNRnext,tnext) = self.Imaging_SNR(filt,mag,tnext,lambkg4ETC=lambkg4ETC)        
+                    
+                (SNRnext,tnext) = self.Imaging_SNR(filt,mag,tnext,lambkg4ETC=lambkg4ETC,spec=spec,**kwargs)
             if not(tnext is None):
                 if self.verbose: print('SNR=%6.2f>=%.2f for texp=%6.1f, and SNR=%.2f<%.2f for texp=%6.1f!! SUCCESS!' % (SNRlast,SNR,tlast,SNRnext,SNR,tnext))
             (tplus,SNRplus)=(tlast,SNRlast)
@@ -390,7 +423,8 @@ class jwst_SNRclass:
         return(results)
                                 
 
-    def Imaging_SNR_table(self, filters, magrange, exptime, lambkg4ETC=None,SNRformat=None):
+    def Imaging_SNR_table(self, filters, magrange, exptime, lambkg4ETC=None,SNRformat=None,
+                            spec=None,**kwargs):
         """
         Parameters
         ----------
@@ -437,7 +471,7 @@ class jwst_SNRclass:
             
             SNRs=[]
             for mag in magrange:
-                (SNRval,exptime1)=self.Imaging_SNR(filt,mag,exptime,lambkg4ETC=lambkg4ETC)
+                (SNRval,exptime1)=self.Imaging_SNR(filt,mag,exptime,lambkg4ETC=lambkg4ETC,spec=spec,**kwargs)
                 SNRs.append(SNRval)
                 
             self.SNR.t[filt+'_SN']=np.array(SNRs)
@@ -445,7 +479,8 @@ class jwst_SNRclass:
         return(exptime1)
 
     def Imaging_texp_table(self, filters, magrange, SNR, lambkg4ETC=None,texp_type='best',
-                           SNR_tolerance_in_percent=10,saveSNRflag=False,texpformat=None,SNRformat=None):
+                           SNR_tolerance_in_percent=10,saveSNRflag=False,texpformat=None,SNRformat=None,
+                           spec=None,**kwargs):
         """
 
         Parameters
@@ -513,7 +548,9 @@ class jwst_SNRclass:
             texps=[]
             SNRs=[]
             for mag in magrange:
-                texp_results=self.texp4SNRatmag(filt,mag,SNR,lambkg4ETC=lambkg4ETC,SNR_tolerance_in_percent=SNR_tolerance_in_percent)
+                texp_results=self.texp4SNRatmag(filt,mag,SNR,lambkg4ETC=lambkg4ETC,
+                                                SNR_tolerance_in_percent=SNR_tolerance_in_percent,
+                                                spec=spec,**kwargs)
                 texps.append(texp_results[texp_type][0])
                 if saveSNRflag:
                     SNRs.append(texp_results[texp_type][1])
