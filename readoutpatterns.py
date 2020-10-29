@@ -107,41 +107,41 @@ Readout  NGROUP  NINT   tint  NEXP    texp
 """
 
 pattern2exptime['nirspec'] ="""
-Readout NGROUP  NINT    tint    NEXP    texp
-nrsirs2rapid    4   1   58.4    4   233.4
-nrsirs2rapid    8   1   116.7   4   466.8
-nrsirs2rapid    12  1   175.1   4   700.3
-nrsirs2rapid    16  1   233.4   4   933.7
-nrsirs2rapid    20  1   291.8   4   1167.1
-nrsirs2rapid    24  1   350.1   4   1400.5
-nrsirs2rapid    28  1   408.5   4   1634.0
-nrsirs2rapid    32  1   466.8   4   1867.4
-nrsirs2rapid    36  1   525.2   4   2100.8
-nrsirs2rapid    40  1   583.6   4   2334.2
-nrsirs2rapid    44  1   641.9   4   2567.7
-nrsirs2rapid    48  1   700.3   4   2801.1
-nrsirs2rapid    52  1   758.6   4   3034.5
-nrsirs2rapid    56  1   817.0   4   3267.9
-nrsirs2rapid    60  1   875.3   4   3501.4
-nrsirs2rapid    64  1   933.7   4   3734.8
-nrsirs2rapid    68  1   992.1   4   3968.2
-nrsirs2rapid    72  1   1050.4  4   4201.6
-nrsirs2rapid    76  1   1108.8  4   4435.1
-nrsirs2rapid    80  1   1167.1  4   4668.5
-nrsirs2rapid    84  1   1225.5  4   4901.9
-nrsirs2rapid    88  1   1283.8  4   5135.3
-nrsirs2rapid    92  1   1342.2  4   5368.8
-nrsirs2rapid    96  1   1400.5  4   5602.2
-nrsirs2rapid    100 1   1458.9  4   5835.6
-nrsirs2rapid    52  2   758.6   4   6069.0
-nrsirs2rapid    56  2   817.0   4   6535.9
-nrsirs2rapid    60  2   875.3   4   7002.7
-nrsirs2rapid    64  2   933.7   4   7469.6
-nrsirs2rapid    68  2   992.1   4   7936.4
-nrsirs2rapid    72  2   1050.4  4   8403.3
-nrsirs2rapid    76  2   1108.8  4   8870.1
-nrsirs2rapid    80  2   1167.1  4   9337.0
-nrsirs2rapid    84  2   1225.5  4   9803.8
+      Readout  NGROUP  NINT    tint  NEXP    texp
+ nrsirs2rapid       4     1    58.4     4   291.8
+ nrsirs2rapid       8     1   116.7     4   525.2
+ nrsirs2rapid      12     1   175.1     4   758.6
+ nrsirs2rapid      16     1   233.4     4   992.0
+ nrsirs2rapid      20     1   291.8     4  1225.5
+ nrsirs2rapid      24     1   350.1     4  1458.9
+ nrsirs2rapid      28     1   408.5     4  1692.3
+ nrsirs2rapid      32     1   466.8     4  1925.7
+ nrsirs2rapid      36     1   525.2     4  2159.2
+ nrsirs2rapid      40     1   583.6     4  2392.6
+ nrsirs2rapid      44     1   641.9     4  2626.0
+ nrsirs2rapid      48     1   700.3     4  2859.4
+ nrsirs2rapid      52     1   758.6     4  3092.9
+ nrsirs2rapid      56     1   817.0     4  3326.3
+ nrsirs2rapid      60     1   875.3     4  3559.7
+ nrsirs2rapid      64     1   933.7     4  3793.1
+ nrsirs2rapid      68     1   992.1     4  4026.6
+ nrsirs2rapid      72     1  1050.4     4  4260.0
+ nrsirs2rapid      76     1  1108.8     4  4493.4
+ nrsirs2rapid      80     1  1167.1     4  4726.8
+ nrsirs2rapid      84     1  1225.5     4  4960.3
+ nrsirs2rapid      88     1  1283.8     4  5193.7
+ nrsirs2rapid      92     1  1342.2     4  5427.1
+ nrsirs2rapid      96     1  1400.5     4  5660.5
+ nrsirs2rapid     100     1  1458.9     4  5894.0
+ nrsirs2rapid      52     2   758.6     4  6127.4
+ nrsirs2rapid      56     2   817.0     4  6594.2
+ nrsirs2rapid      60     2   875.3     4  7061.1
+ nrsirs2rapid      64     2   933.7     4  7527.9
+ nrsirs2rapid      68     2   992.1     4  7994.8
+ nrsirs2rapid      72     2  1050.4     4  8461.6
+ nrsirs2rapid      76     2  1108.8     4  8928.5
+ nrsirs2rapid      80     2  1167.1     4  9395.3
+ nrsirs2rapid      84     2  1225.5     4  9862.2
 """
 class readoutpatternclass(pdastroclass):
     def __init__(self,instrument):
@@ -174,13 +174,13 @@ class readoutpatternclass(pdastroclass):
             raise RuntimeError('readout %s is not yet supported, update self.tgroup_sec!' % readout)
         return(self.tgroup_sec[readout])
 
-    def calc_t(self,Ngroups,Nint,Nexp,tgroup=None,readout=None):
+    def calc_t(self,Ngroups,Nint,Nexp,tgroup=None,readout=None,tadd=0.0):
         if tgroup is None:
             if readout is None:
                 raise RuntimeError("Neither tgroup nor readout specified, cannot calculate t")    
             tgroup = self.get_tgroup_for_readoutpattern(readout)
         tint = Ngroups*tgroup
-        texp = tint*Nint*Nexp
+        texp = tint*Nint*Nexp+tadd
         return(tint,texp)
     
     def calc_MIRI_exptimes(self,
@@ -224,7 +224,9 @@ class readoutpatternclass(pdastroclass):
                            # Ngroups % Ngroups_modval == 0
                            # This reduces the # of entries in the table.
                            Ngroups_modval = 4,
-                           tmin=None,tmax=10000.0):
+                           tmin=None,tmax=10000.0,
+                           # additive term: for NIRSPEC
+                           tadd=58.35):
         """
         same as calc_exptimes() but with good default values for MIRI
 
@@ -237,15 +239,16 @@ class readoutpatternclass(pdastroclass):
         self.t contains the table
 
         """
+        print('VVV',tadd)
         result = self.calc_exptimes('nirspec','nrsirs2rapid',filename=filename,Ng_min=Ng_min,Ng_max=Ng_max,Ng_absmin=Ng_absmin,
-                                    Nexp_max=Nexp_max,Ngroups_modval=Ngroups_modval,tmin=tmin,tmax=tmax)
+                                    Nexp_max=Nexp_max,Ngroups_modval=Ngroups_modval,tmin=tmin,tmax=tmax,tadd=tadd)
         return(result)
 
     def calc_exptimes(self,instrument,readout,
                       filename=None,
                       Ng_min=5,Ng_absmin=5,Ng_max=20,
                       Nexp_max=4,Ngroups_modval=None,
-                      tmin=None,tmax=10000.0):
+                      tmin=None,tmax=10000.0,tadd=0.0):
         """
         Calculate a list of exposure times with reasonable readout pattern
 
@@ -275,6 +278,9 @@ class readoutpatternclass(pdastroclass):
             minimum total exposure times. The default is None.
         tmax : float, optional
             maximum total exposure time. The default is 10000.0.
+        tadd : float, optional
+            For NIRSpec, 58.35sec needs to be added
+            The default is 0.0.
 
         Returns
         -------
@@ -332,7 +338,7 @@ class readoutpatternclass(pdastroclass):
                     useflag=False
                     
             #calculate integration and exposure times
-            (tint,texp)=self.calc_t(Ngroups,Nint,Nexp,tgroup=tgroup)
+            (tint,texp)=self.calc_t(Ngroups,Nint,Nexp,tgroup=tgroup,tadd=tadd)
             
             # check for limits
             if not(tmin is None) and (texp<tmin):useflag=False

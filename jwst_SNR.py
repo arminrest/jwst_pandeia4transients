@@ -230,7 +230,7 @@ class jwst_SNRclass:
         self.pandeiacfg['scene'][0]['spectrum']['normalization']['bandpass'] = 'nircam,sw_imaging,' + filt.lower()
         self.pandeiacfg['scene'][0]['spectrum']['normalization']['norm_flux'] = mag
         self.pandeiacfg['scene'][0]['spectrum']['normalization']['norm_fluxunit'] = 'abmag'
-        if not(spectrum is None):
+        if not(spec is None):
             print('reference spec')
             # spectrum needs to be 
             spec.convert('micron')
@@ -266,7 +266,7 @@ class jwst_SNRclass:
             SNR = self.ETCresults['scalar']['sn']
         total_exposure_time = self.ETCresults['scalar']['total_exposure_time']
         print('total texp ',total_exposure_time)
-        if self.verbose>1: print('filter:%s mag:%.2f, target exptime:%.1f  == SNR=%.2f exptime=%.1f' % (filt, mag, exptime,SNR,total_exposure_time))
+        if self.verbose>1: print('filter:%s mag:%.2f, target exptime:%.1f  ==> SNR=%.2f exptime=%.1f' % (filt, mag, exptime,SNR,total_exposure_time))
         return(SNR,total_exposure_time)
 
     def Av_spec_SNR(self,wave,width=0):
@@ -322,7 +322,7 @@ class jwst_SNRclass:
         """
         if self.verbose: print('#############################\n#### Filter %s, mag %.2f for S/N=%.f \n#############################' % (filt,mag,SNR))
 
-        texp0=1000
+        texp0=200
         (SNR0, texp0) = self.Imaging_SNR(filt,mag,texp0,lambkg4ETC=lambkg4ETC,spec=spec,**kwargs)        
         if self.verbose>1: print('SNR=%6.2f for starting texp=%6.1f' % (SNR0,texp0))
         
@@ -332,7 +332,7 @@ class jwst_SNRclass:
         elif instrument=='miri':
             pwlindex = 16/8
         elif instrument == 'nirspec':
-            pwlindex = 2 
+            pwlindex = 14/8 
         else:
             raise RuntimeError('instrment %s not yet implemented!' % instrument)
             
