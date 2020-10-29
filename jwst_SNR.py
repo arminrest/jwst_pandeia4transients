@@ -332,7 +332,7 @@ class jwst_SNRclass:
         elif instrument=='miri':
             pwlindex = 16/8
         elif instrument == 'nirspec':
-            pwlindex = 14/8 
+            pwlindex = 11/8 
         else:
             raise RuntimeError('instrment %s not yet implemented!' % instrument)
             
