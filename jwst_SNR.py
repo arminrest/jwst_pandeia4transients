@@ -322,7 +322,7 @@ class jwst_SNRclass:
         """
         if self.verbose: print('#############################\n#### Filter %s, mag %.2f for S/N=%.f \n#############################' % (filt,mag,SNR))
 
-        texp0=200
+        texp0=1000
         (SNR0, texp0) = self.Imaging_SNR(filt,mag,texp0,lambkg4ETC=lambkg4ETC,spec=spec,**kwargs)        
         if self.verbose>1: print('SNR=%6.2f for starting texp=%6.1f' % (SNR0,texp0))
         
