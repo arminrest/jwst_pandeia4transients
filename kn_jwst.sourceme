@@ -1,10 +1,10 @@
 if [[ $HOSTNAME =~ arminmac* ]]; then
-   export KN_JWST_SOURCEDIR=/Users/arest/nircam/kilonova_jwst
-   export KN_JWST_DATA=/Users/arest/nircam/kilonova_data
+   export TOOLS_PANDEIA_SOURCEDIR=/Users/arest/nircam/jwst_pandeia4transients
+   export LC_DATA=/Users/arest/nircam/kilonova_data/lc
    export PIPE_BATCH_SYSTEM=NONE
 elif [[ $HOSTNAME =~ example_hostname ]]; then
-   export KN_JWST_SOURCEDIR=/example/atlaslc
-   export KN_JWST_DATA=/example/data
+   export TOOLS_PANDEIA_SOURCEDIR=/example/atlaslc
+   export LC_DATA=/example/data
    export PIPE_BATCH_SYSTEM=NONE
 else
    echo "Hostname $HOSTNAME is not defined yet in the sourceme file!"
@@ -15,5 +15,5 @@ export PATH="${KN_JWST_SOURCEDIR}:${PATH}:."
 
 export PS1="\u@\h(KN,jwst)% "
 
-alias cdsrc='cd $KN_JWST_SOURCEDIR'
+alias cdsrc='cd $TOOLS_PANDEIA_SOURCEDIR'
 alias cddata='cd $KN_JWST_DATA'

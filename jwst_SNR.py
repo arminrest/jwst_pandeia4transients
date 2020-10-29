@@ -220,7 +220,7 @@ class jwst_SNRclass:
         self.pandeiacfg['configuration']['instrument']['filter'] = filt.lower()
         self.pandeiacfg['scene'][0]['spectrum']['normalization']['norm_flux'] = mag
         self.pandeiacfg['scene'][0]['spectrum']['normalization']['norm_fluxunit'] = 'abmag'
-        if spectrum is not None:
+        if not(spectrum is None):
             # spectrum needs to be 
             self.spec.convert('micron')
             self.spec.convert('flam')

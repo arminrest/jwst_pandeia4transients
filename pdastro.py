@@ -9,6 +9,7 @@ from astropy.time import Time
 import astropy.io.fits as fits
 import astropy
 import pandas as pd
+from scipy.interpolate import interp1d
 
 def makepath(path,raiseError=True):
     if path == '':
@@ -66,6 +67,9 @@ class pdastroclass:
         # example:
         # self.default_formatters = {'MJD':'{:.6f}'.format,'counter':'{:05d}'.format}
        
+        # dictionary for the splines. arguments are the y columns of the spline
+        self.spline={}
+
 
     def load_spacesep(self,filename,test4commentedheader=True,namesMapping=None,roundingMapping=None,
                       na_values=['None','-','--'],**kwargs):
@@ -237,12 +241,24 @@ class pdastroclass:
             
         return(indices)
     
-    def getcolnames(self,colnames=None):
+    def getcolnamesDELME(self,colnames=None):
         """Return a list of all colnames of colnames=None. If colnames=string, return a list"""
         if (colnames is None) or colnames.lower()=='all':
             colnames = self.t.columns
         else:
             if isinstance(colnames,str):
+                colnames=[colnames]
+        return(colnames)
+            
+
+    def getcolnames(self,colnames=None):
+        """Return a list of all colnames of colnames=None. If colnames=string, return a list"""
+        if (colnames is None):
+             colnames = self.t.columns[:] 
+        elif isinstance(colnames,str):
+            if colnames.lower()=='all':
+                colnames = self.t.columns[:]
+            else:
                 colnames=[colnames]
         return(colnames)
             
@@ -389,3 +405,18 @@ class pdastroclass:
         mjds = dateobjects.mjd
 
         self.t[mjdcol]=mjds
+        
+    def initspline(self,xcol,ycol,indices=None,
+                   kind='cubic',bounds_error=False,fill_value='extrapolate', 
+                   **kwargs):
+        # make sure there are no nan values
+        indices = lc.ix_remove_null(colnames=[xcol,ycol])
+
+        # initialize the spline and save it in self.spline with the key ycol
+        self.spline[ycol]= interp1d(self.t.loc[indices,xcol],self.t.loc[indices,ycol],
+                                    kind=kind,bounds_error=bounds_error,fill_value=fill_value,**kwargs)
+        
+    def getspline(self,xval,ycol):
+        if not(ycol in self.spline):
+            raise RuntimeError('Spline for column %s is not defined!' % ycol)
+        return(self.spline[ycol](xval))
