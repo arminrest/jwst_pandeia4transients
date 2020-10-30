@@ -409,8 +409,13 @@ class pdastroclass:
     def initspline(self,xcol,ycol,indices=None,
                    kind='cubic',bounds_error=False,fill_value='extrapolate', 
                    **kwargs):
+        if not (xcol in self.t.columns):
+            raise RuntimeError("spline: x column %s does not exist in table!" % xcol)
+        if not (ycol in self.t.columns):
+            raise RuntimeError("spline: y column %s does not exist in table!" % ycol)
+
         # make sure there are no nan values
-        indices = lc.ix_remove_null(colnames=[xcol,ycol])
+        indices = self.ix_remove_null(colnames=[xcol,ycol])        
 
         # initialize the spline and save it in self.spline with the key ycol
         self.spline[ycol]= interp1d(self.t.loc[indices,xcol],self.t.loc[indices,ycol],

@@ -33,7 +33,7 @@ class jwst_SNRclass:
     def __init__(self,instrument='nircam',mode=None,ETCjsonfile=None):
         self.verbose = 0
         self.allowed_instruments = ['nircam','nirspec','niriss','miri']
-        self.instrument = instrument
+
         # initialization
         self.initialize_pandeia(instrument,mode=mode,ETCjsonfile=ETCjsonfile)
 
@@ -57,6 +57,7 @@ class jwst_SNRclass:
         
         self.SNRformat = '{:.2f}'.format
         self.texpformat = '{:.1f}'.format
+        self.magformat = '{:.2f}'.format
         self.formatters4SNRtable = None
         self.formatters4texptable = None
 
@@ -101,6 +102,7 @@ class jwst_SNRclass:
         
         # make sure the instrument is correct
         instrument = instrument.lower()
+        self.instrument = instrument
         if not (instrument in self.allowed_instruments):
             raise(RuntimeError,'instrument %s not in %s' % (instrument,' '.join(self.allowed_instruments)))   
 
@@ -217,8 +219,7 @@ class jwst_SNRclass:
             if self.verbose>2: print('Using saved lambkg4ETC')
             lambkg4ETC=self.lambkg4ETC
         if lambkg4ETC is None:
-            print('!!!!!!!!!!!!!!!\n!!!WARNING!!!!!\n!!!!!!!!!!!!!!!\nNo background specified, calculating SNR WITHOUT background!!')
-            lambkg4ETC=[]
+            raise RuntimeError('No background specified!!')
 
         self.pandeiacfg['background'] = lambkg4ETC
 
@@ -320,11 +321,34 @@ class jwst_SNRclass:
              (i.e. if the SNRminus is within the tolerance), then best is 
              set to minus. Otherwise best=plus
         """
+        print(mag,type(mag))
+        if (pd.isnull(mag)):
+            print('#############################\n#### Filter %s, mag is not a number, returning NaNs\n#############################' % filt)
+            results = {'plus':(None,None),
+                       'minus':(None,None),
+                       'best':(None,None)}  
+            return(results)
+
         if self.verbose: print('#############################\n#### Filter %s, mag %.2f for S/N=%.f \n#############################' % (filt,mag,SNR))
+
+           
 
         texp0=1000
         (SNR0, texp0) = self.Imaging_SNR(filt,mag,texp0,lambkg4ETC=lambkg4ETC,spec=spec,**kwargs)        
         if self.verbose>1: print('SNR=%6.2f for starting texp=%6.1f' % (SNR0,texp0))
+        if SNR0==0.0 and mag<25:
+            texp0=1 # get shortest exposure time
+            (SNR0, texp0) = self.Imaging_SNR(filt,mag,texp0,lambkg4ETC=lambkg4ETC,spec=spec,**kwargs)        
+            if self.verbose>1: print('SNR=%6.2f for starting texp=%6.1f' % (SNR0,texp0))
+            if SNR0==0.0:
+                print('#############################\n#### Filter %s, mag %.2f is saturated, returning NaNs\n#############################' % filt)
+                results = {'plus':(None,None),
+                           'minus':(None,None),
+                           'best':(None,None)}  
+                return(results)
+                
+            
+        
         
         instrument = self.get_instrument()
         if instrument=='nircam':
