@@ -22,7 +22,7 @@ from pandeia.engine.calc_utils import build_default_calc  # or alternatively, lo
 
 package_directory = os.path.dirname(os.path.abspath(__file__))
 
-class NIRSpec_SN(object):
+class NIRSpec_SNR(object):
     """
     Wapper for the Pandeia engine to calculate the signal to noise and exposure times for 
     NIRSpec observations. Numerous options are available for readout mode, grating, filter,
@@ -38,7 +38,7 @@ class NIRSpec_SN(object):
         The normalising magnitude is as measured by NIRCam with mode = sw_imaging filter = f115w
     
     Key functions:
-        Calculate_SN()
+        Calculate_SNR()
             Calculates the expected signal to noise for a given configuration and exposuretime.
             The configuration is automatically determined from the input exposure time 
         
@@ -68,7 +68,7 @@ class NIRSpec_SN(object):
                  z=None,
                  grating='prism',filt=None,
                  read_mode='nrsirs2rapid',mode='fixed_slit',
-                 spectrum = None,exptime=None):
+                 spec = None,exptime=None):
 
         self.grating = grating.lower() # grating name
         self.Check_grating()
@@ -96,7 +96,7 @@ class NIRSpec_SN(object):
         self.dist = dist
         self.z = z
 
-        self.spec = spectrum
+        self.spec = spec
         self.background4jwst = background4jwstclass()
         self.lambkg4ETC = None
         # calculated by pandeia
@@ -352,7 +352,7 @@ class NIRSpec_SN(object):
         return np.nanmax(self.calc_sn)
 
 
-    def Calculate_SN(self,exptime=None,ngroups= None,target=None,bkgpercentile=50):
+    def Calculate_SNR(self,exptime=None,ngroups= None,target=None,bkgpercentile=50):
         """
         Calculate the signal to noise of the provided spectrum under the 
         given instrument configuration.
@@ -398,7 +398,7 @@ class NIRSpec_SN(object):
         """
         #print('groups ',groups)
         self.ngroups = groups
-        self.Calculate_SN()
+        self.Calculate_SNR()
         SN = self.SN_for_wavelength()
         res = abs(SN-target_sn)
         if res <= 0.2:
@@ -466,7 +466,7 @@ class NIRSpec_SN(object):
         diff = target
         while (diff > lim) & (g < maxiter):
             self.ngroups = g
-            self.Calculate_SN()
+            self.Calculate_SNR()
             SN = self.SN_for_wavelength()
             diff = target - sn
             g += 1
@@ -489,8 +489,8 @@ class NIRSpec_SN(object):
             self.spec.convert('Angstrom')
             wav = self.spec.wave # convert to Angstrom for extinction
             red = apply(fitzpatrick99(wav.astype('double'),self.av,3.1),self.spec.flux)
-            self.spec = S.ArraySpectrum(spec.wave,red,waveunits=spec.waveunits,
-                                        fluxunits=spec.fluxunits)
+            self.spec = S.ArraySpectrum(self.spec.wave,red,waveunits=self.spec.waveunits,
+                                        fluxunits=self.spec.fluxunits)
         return
 
     def Distance_modulus(self,apparent,absolute):
@@ -596,7 +596,7 @@ class NIRSpec_SN(object):
         if av is not None:
             self.Redden_spec()
 
-        self.Calculate_SN()
+        self.Calculate_SNR()
 
         rand = self.Random_realisation()
         return rand

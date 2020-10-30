@@ -252,7 +252,7 @@ class jwst_SNRclass:
         
         # Exposure specifications
         info = self.readoutpattern.info4closestexptime(exptime)
-        print('Ehu ',info)
+        
         #print(info)
         for key in ['NEXP','NINT','NGROUP','readout_pattern']:
             self.pandeiacfg['configuration']['detector'][key.lower()] = info[key]
@@ -266,7 +266,7 @@ class jwst_SNRclass:
         else:
             SNR = self.ETCresults['scalar']['sn']
         total_exposure_time = self.ETCresults['scalar']['total_exposure_time']
-        print('total texp ',total_exposure_time)
+        
         if self.verbose>1: print('filter:%s mag:%.2f, target exptime:%.1f  ==> SNR=%.2f exptime=%.1f' % (filt, mag, exptime,SNR,total_exposure_time))
         return(SNR,total_exposure_time)
 
@@ -408,7 +408,7 @@ class jwst_SNRclass:
                  
                 # get the next smaller exposure time
                 tnext = self.readoutpattern.nextsmallestexptime(tnext-1.0)
-                print('BLEH ',tnext)
+                
                 # If this is the last index of the readoutpattern, and the SNR is still not big enough, return None and the last SNR possible
                 if (tnext is None):
                     SNRnext=None
