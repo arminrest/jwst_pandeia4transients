@@ -489,8 +489,8 @@ class NIRSpec_SNR(object):
             self.spec.convert('Angstrom')
             wav = self.spec.wave # convert to Angstrom for extinction
             red = apply(fitzpatrick99(wav.astype('double'),self.av,3.1),self.spec.flux)
-            self.spec = S.ArraySpectrum(spec.wave,red,waveunits=spec.waveunits,
-                                        fluxunits=spec.fluxunits)
+            self.spec = S.ArraySpectrum(self.spec.wave,red,waveunits=self.spec.waveunits,
+                                        fluxunits=self.spec.fluxunits)
         return
 
     def Distance_modulus(self,apparent,absolute):
