@@ -133,9 +133,9 @@ class NIRSpec_SNR(object):
         for i in range(len(allowed)):
             if self.grating == allowed[i]:
                 return 
-        message = ('No such grating available, please choose from:\n'
+        message = ('No such grating available, please choose from:\n '
                    + 'prism\n g140h\n g140m\n g235h\n g235m\n g395h\n g395m')
-        raise(ValueError, message)
+        raise(ValueError(message))
         
     def Check_filter(self):
         """
@@ -146,9 +146,9 @@ class NIRSpec_SNR(object):
         for i in range(len(allowed)):
             if self.filter == allowed[i]:
                 return 
-        message = ('No such filter available, please choose from:\n'
+        message = ('No such filter available, please choose from:\n '
                    + 'clear\n f070lp\n f100lp\n f110w\n f140x\n f170lp\n f290lp')
-        raise(ValueError, message)
+        raise(ValueError(message))
     
     def Check_read_mode(self):
         """
@@ -159,9 +159,9 @@ class NIRSpec_SNR(object):
         for i in range(len(allowed)):
             if self.read_mode == allowed[i]:
                 return 
-        message = ('No such readout mode available, please choose from:\n'
+        message = ('No such readout mode available, please choose from:\n '
                    + 'nrsrapid\n nrsrapidd6\n nrs\n nrsirs2rapid\n nrsirs2')
-        raise(ValueError, message)
+        raise(ValueError(message))
     
     def Check_mode(self):
         """
@@ -171,9 +171,9 @@ class NIRSpec_SNR(object):
         for i in range(len(allowed)):
             if self.mode == allowed[i]:
                 return 
-        message = ('No such mode available, please choose from:\n'
+        message = ('No such mode available, please choose from:\n '
                    + 'fixed_slit\n ifu\n')
-        raise(ValueError, message)
+        raise(ValueError(message))
 
     def Check_exposure_time(self):
         """
@@ -181,7 +181,7 @@ class NIRSpec_SNR(object):
         """
         if self.exp_time is None:
             message = "Exposure time can't be None"
-            raise(ValueError, message)
+            raise(ValueError(message))
         #if (type(self.exp_time) != float) & (type(self.exp_time) !=int):
         #   print(type(self.exp_time))
         #   message = "Exposure time must be either a float or int"
@@ -261,7 +261,7 @@ class NIRSpec_SNR(object):
         if self.ref_wave is None:
             message += 'No reference wavelength specified (ref_wave = None)\n'
         if message != '':
-            raise Warning(message)
+            raise(ValueError(message))
         return
         
     def Get_background(self):
@@ -344,7 +344,7 @@ class NIRSpec_SNR(object):
             self.ref_wave = wave
         ind = np.argmin(abs(self.calc_wave - self.ref_wave))
         if abs(self.calc_wave - self.ref_wave) > .1:
-            raise(ValueError,'reference wavelength not in wavelength range')
+            raise(ValueError('reference wavelength not in wavelength range'))
         return self.calc_sn[ind]
 
 
@@ -571,7 +571,7 @@ class NIRSpec_SNR(object):
         instrument = instrument.lower()
         mode = mode.lower()
         if not (instrument in self.allowed_instruments):
-            raise(RuntimeError,'instrument %s not in %s' % (instrument,' '.join(self.allowed_instruments)))
+            raise(RuntimeError('instrument %s not in %s' % (instrument,' '.join(self.allowed_instruments))))
         self.readoutpattern=readoutpatternclass(instrument)
         if ETCjsonfile is None:
             self.pandeiacfg=build_default_calc('jwst',instrument,mode)
