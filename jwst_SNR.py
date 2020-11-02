@@ -27,6 +27,13 @@ from background4jwst import background4jwstclass
 def nJytoAB(F_nJy):
     return (F_nJy * u.nJy).to(u.ABmag).value
 
+grating_range = {'g140m':[0.97,1.84],
+                 'g235m':[1.66,3.07],
+                 'g395m':[2.87,5.10],
+                 'g140h':[0.97,1.82],
+                 'g235h':[1.66,3.05],
+                 'g395h':[2.87,5.14],
+                 'prism':[0.60,5.30]}
 
             
 class jwst_SNRclass:
@@ -96,7 +103,36 @@ class jwst_SNRclass:
             self.sky_annulii[key]=sky_dict[key]
         return(0)
     
-    def initialize_pandeia(self,instrument,mode=None,ETCjsonfile=None):
+    def set_grating_filter(self,grating):
+        
+        if (grating == 'g140h') | (grating == 'g140m'):
+            message = ('2 filters available: f070lp, or f100lf \n' +
+                        'Assigning f070lp')
+            #warnings.warn(message)
+            filt  = 'f100lp'
+
+        elif (grating == 'g235h') | (grating == 'g235m'):
+            filt = 'f170lp'
+        elif (grating == 'g395h') | (grating == 'g395m'):
+            filt = 'f290lp'
+        elif grating == 'prism':
+            filt = 'clear'
+        return filt
+
+    def Check_grating(self,grating):
+        """
+        Check to see if the input grating value is a valid option
+        """
+        allowed = ['prism', 'g140h', 'g140m', 
+                   'g235h', 'g235m', 'g395h', 'g395m']
+        for i in range(len(allowed)):
+            if grating == allowed[i]:
+                return grating
+        message = ('No such grating available, please choose from:\n '
+                   + 'prism\n g140h\n g140m\n g235h\n g235m\n g395h\n g395m')
+        raise(ValueError(message))
+
+    def initialize_pandeia(self,instrument,mode=None,grating='prism',ETCjsonfile=None):
         print('Initializing pandeia with %s, %s' % (instrument,mode))
         
         # make sure the instrument is correct
@@ -112,15 +148,23 @@ class jwst_SNRclass:
                 mode='imaging'
             elif instrument=='nirspec':
                 mode='fixed_slit'
+
             else:
                 raise RuntimeError('unknown instrument %s!' % instrument)
         mode = mode.lower()
 
+
         self.readoutpattern=readoutpatternclass(instrument)
- 
+        
+
         if ETCjsonfile is None:
             print('Initializing',instrument,mode)
             self.pandeiacfg=build_default_calc('jwst',instrument,mode)
+
+            if instrument == 'nirspec':
+                self.pandeiacfg['configuration']['detector']['subarray'] = 'full'
+                self.pandeiacfg['configuration']['instrument']['disperser'] = self.Check_grating(grating)
+                self.pandeiacfg['configuration']['instrument']['filter'] = self.set_grating_filter(grating)
         else:
             with open(ETCjsonfile) as f:  # use a json file you have
                  self.pandeiacfg = json.load(f)
@@ -186,7 +230,7 @@ class jwst_SNRclass:
         self.lambkg4ETC = self.background4jwst.lambkg4ETC(percentile,**kwargs)
         return(0)
 
-    def Imaging_SNR(self, filt, mag, exptime, lambkg4ETC=None,spec=None,**kwargs):
+    def Calculate_SNR(self, filt, mag, exptime, lambkg4ETC=None,spec=None,**kwargs):
         """
         Parameters
         ----------
@@ -210,8 +254,11 @@ class jwst_SNRclass:
         used for the calculation.
 
         """
-        
-        if self.verbose>2: print('Calculating SNR for filter:%s mag:%f, exptime:%f \n' % (filt, mag, exptime))
+        if self.instrument == 'nirspec':
+            grating = self.pandeiacfg['configuration']['instrument']['disperser']
+            if self.verbose>2: print('Calculating SNR for filter:%s mag:%f, %f, exptime:%f \n' % (filt, mag, grating, exptime))
+        else:
+            if self.verbose>2: print('Calculating SNR for filter:%s mag:%f, exptime:%f \n' % (filt, mag, exptime))
 
         if lambkg4ETC is None:
             if self.verbose>2: print('Using saved lambkg4ETC')
@@ -225,8 +272,8 @@ class jwst_SNRclass:
         # Assign filter and magnitude
         if self.instrument != 'nirspec':
             self.pandeiacfg['configuration']['instrument']['filter'] = filt.lower()
-        else:
-            self.pandeiacfg['configuration']['detector']['subarray'] = 'full'
+            
+
         self.pandeiacfg['scene'][0]['spectrum']['normalization']['bandpass'] = 'nircam,sw_imaging,' + filt.lower()
         self.pandeiacfg['scene'][0]['spectrum']['normalization']['norm_flux'] = mag
         self.pandeiacfg['scene'][0]['spectrum']['normalization']['norm_fluxunit'] = 'abmag'
@@ -270,7 +317,9 @@ class jwst_SNRclass:
         return(SNR,total_exposure_time)
 
     def Av_spec_SNR(self,wave,width=0):
-        lam, snr = self.ETCresults['1d']['sn']
+        #lam, snr = self.ETCresults['1d']['sn']
+        lam, flux = self.ETCresults['1d']['extracted_flux']
+        err = self.ETCresults['1d']['extracted_noise'][1]
         #plt.figure()
         #plt.axvspan(wave-width,wave+width,alpha=.3,color='orange')
         #plt.plot(lam,snr)
@@ -278,7 +327,16 @@ class jwst_SNRclass:
         low = wave - width
         high = wave + width
         ind = (lam >= low) & (lam <= high)
-        av = np.nanmean(snr[ind])
+        flux = flux[ind]
+        err = err[ind]
+        ind = np.isfinite(flux) & np.isfinite(err)
+        flux = flux[ind]
+        err = err[ind]
+        #snr = snr[ind]
+        snr = np.nansum(flux) / np.sqrt(np.nansum(err**2))
+
+        av = np.nanmean(snr)
+        if np.isnan(av): av = 0
         return av
 
     def texp4SNRatmag(self,filt,mag,SNR,lambkg4ETC=None,SNR_tolerance_in_percent=10.0,
@@ -320,10 +378,14 @@ class jwst_SNRclass:
              (i.e. if the SNRminus is within the tolerance), then best is 
              set to minus. Otherwise best=plus
         """
-        if self.verbose: print('#############################\n#### Filter %s, mag %.2f for S/N=%.f \n#############################' % (filt,mag,SNR))
+        if self.instrument == 'nirspec':
+            grating = self.pandeiacfg['configuration']['instrument']['disperser']
+            if self.verbose: print('#############################\n#### Filter:%s, mag %f, grating: %s, for S/N=%.f \n#############################' % (filt, mag, grating, SNR))
+        else:
+            if self.verbose: print('#############################\n#### Filter %s, mag %.2f for S/N=%.f \n#############################' % (filt,mag,SNR))
 
         texp0=1000
-        (SNR0, texp0) = self.Imaging_SNR(filt,mag,texp0,lambkg4ETC=lambkg4ETC,spec=spec,**kwargs)        
+        (SNR0, texp0) = self.Calculate_SNR(filt,mag,texp0,lambkg4ETC=lambkg4ETC,spec=spec,**kwargs)        
         if self.verbose>1: print('SNR=%6.2f for starting texp=%6.1f' % (SNR0,texp0))
         
         instrument = self.get_instrument()
@@ -350,7 +412,7 @@ class jwst_SNRclass:
             raise RuntimeError("BUG??? Cannot find any exposure time...")
             
             
-        (SNRnext,tnext) = self.Imaging_SNR(filt,mag,tnext,lambkg4ETC=lambkg4ETC,spec=spec,**kwargs)        
+        (SNRnext,tnext) = self.Calculate_SNR(filt,mag,tnext,lambkg4ETC=lambkg4ETC,spec=spec,**kwargs)        
         if self.verbose>1: print('SNR=%6.2f for next texp=%6.1f' % (SNRnext,tnext))
         
         (tlast,SNRlast)=(tnext,SNRnext)
@@ -370,7 +432,7 @@ class jwst_SNRclass:
                     print('Warning: could not find an exposure time that is long enough to reach SNR=%.2f, only %.2f' % (SNR,SNRlast))
                     break
 
-                (SNRnext,tnext) = self.Imaging_SNR(filt,mag,tnext,lambkg4ETC=lambkg4ETC,spec=spec,**kwargs)        
+                (SNRnext,tnext) = self.Calculate_SNR(filt,mag,tnext,lambkg4ETC=lambkg4ETC,spec=spec,**kwargs)        
             if not(tnext is None):
                 if self.verbose: print('SNR=%6.2f>=%.2f for texp=%6.1f!! SUCCESS!' % (SNRnext,SNR,tnext))
             (tplus,SNRplus)=(tnext,SNRnext)
@@ -391,7 +453,7 @@ class jwst_SNRclass:
                     print('Warning: could not find an exposure time that is short enough to be below SNR=%.2f, thus keeping texp=%.1f and SNR=%.2f' % (SNR,tlast,SNRlast))
                     break
                     
-                (SNRnext,tnext) = self.Imaging_SNR(filt,mag,tnext,lambkg4ETC=lambkg4ETC,spec=spec,**kwargs)
+                (SNRnext,tnext) = self.Calculate_SNR(filt,mag,tnext,lambkg4ETC=lambkg4ETC,spec=spec,**kwargs)
             if not(tnext is None):
                 if self.verbose: print('SNR=%6.2f>=%.2f for texp=%6.1f, and SNR=%.2f<%.2f for texp=%6.1f!! SUCCESS!' % (SNRlast,SNR,tlast,SNRnext,SNR,tnext))
             (tplus,SNRplus)=(tlast,SNRlast)
@@ -423,7 +485,7 @@ class jwst_SNRclass:
         return(results)
                                 
 
-    def Imaging_SNR_table(self, filters, magrange, exptime, lambkg4ETC=None,SNRformat=None,
+    def Calculate_SNR_table(self, filters, magrange, exptime, lambkg4ETC=None,SNRformat=None,
                             spec=None,**kwargs):
         """
         Parameters
@@ -471,7 +533,7 @@ class jwst_SNRclass:
             
             SNRs=[]
             for mag in magrange:
-                (SNRval,exptime1)=self.Imaging_SNR(filt,mag,exptime,lambkg4ETC=lambkg4ETC,spec=spec,**kwargs)
+                (SNRval,exptime1)=self.Calculate_SNR(filt,mag,exptime,lambkg4ETC=lambkg4ETC,spec=spec,**kwargs)
                 SNRs.append(SNRval)
                 
             self.SNR.t[filt+'_SN']=np.array(SNRs)
@@ -558,6 +620,126 @@ class jwst_SNRclass:
             self.texp.t[filt+'_t']=np.array(texps)
             if saveSNRflag:
                 self.texp.t[filt+'_SN']=np.array(SNRs)
+
+    
+
+
+    def check_ref_lam(self,grating,lam):
+        keys = list(grating_range.keys())
+        grating = list(grating)
+        g2 = []
+        for i in range(len(grating)):
+            ind = np.where(np.array(keys) == grating[i])[0]
+            if (lam < grating_range[keys[ind]][0]) | (lam > grating_range[keys[ind]][1]):
+                m = 'Reference wavelength is outside of wavelength range for {}'.format
+                print(m)
+            else:
+                g2 += [grating[i]]
+        return g2
+
+    def get_grating_4_ref_lam(self,lam):
+        keys = list(grating_range.keys())
+        gratings = []
+        for i in range(len(keys)):
+            if (lam > grating_range[keys[i]][0]) & (lam < grating_range[keys[i]][1]):
+                #m = ('Reference wavelength is outside of grating range, setting '+
+                #     'new reference wavelength to be middle of grating')
+                gratings += [keys[i]]
+                #lam = (grating_range[keys[ind]][0] + grating_range[keys[ind]][1]) / 2 
+        return gratings
+
+    def Spec_texp_table(self,wave,width, reffilter, magrange, SNR, gratings=None, lambkg4ETC=None,texp_type='best',
+                           SNR_tolerance_in_percent=10,saveSNRflag=False,texpformat=None,SNRformat=None,
+                           spec=None):
+        """
+
+        Parameters
+        ----------
+        filters : list or string
+            Pass (a list of) filter(s) for which to calculate the SNR.
+        magrange : list/tuple of magnitudes
+            Pass a list of magnitudes for which to calculate the SNR..
+        SNR : float 
+            S/N  for which the exposure time should be calculated for.
+        lambkg4ETC : list/tuple of two arrays, optional
+            the first array is the wavelength, the second the background. 
+            The default is None. If none, then the background data in 
+            self.lambkg4ETC is used.
+        texp_type : string, optional
+            'minus', 'plus', or 'best'. The default is 'best'. This is used
+            to select which of the exposure times from self.texp4SNRatmag is 
+            used
+        SNR_tolerance_in_percent : float, optional
+            An exposure time with a SNRminus<SNR can be accepted as 'best' if
+            SNRminus is closer to SNR than SNRplus (or SNRplus==None), 
+            AND if (SNR0-SNRminus)/SNR0<SNR_tolerance_in_percent/100.0 
+            (i.e. if the SNRminus is within the tolerance)
+        saveSNRflag : True/False, optional
+            Save columns <filter>_SN in which the S/N for the given exposure 
+            time is saved. The default is False.
+        texpformat : string formatter, optional
+            String formatter for the exposure time columns. The default is 
+            None. If None, then the default formatter self.texpformat is used
+        SNRformat : string formatter, optional
+            String formatter for the SNR columns. The default is None. If None,
+            then the default formatter self.SNRformat is used
+
+        Returns
+        -------
+        None. the table with the exposure times is saved as a pdastro object 
+        in self.texp. The panda table is in self.texp.t. 
+        The formatters for the table are in self.formatters4texptable
+        Saving the table:
+        self.texp.write('myfilename.txt',formatters=self.formatters4texptable)
+
+        """
+
+        #Make sure filters is a list and not a string
+        if gratings is None:
+            gratings = self.get_grating_4_ref_lam(wave)
+            print(gratings)
+        else:
+            if isinstance(gratings,str):gratings=[gratings]
+            gratings = self.check_ref_lam(gratings)
+
+
+        cols = [reffilter + ' mag']
+        for col in gratings: cols.append(col+'_t')
+        if saveSNRflag:
+            for col in gratings: cols.append(col+'_SN')
+
+        if SNRformat == None: SNRformat = self.SNRformat
+        if texpformat == None: texpformat = self.texpformat
+
+        self.texp = pdastroclass(columns=cols)
+        self.texp.t[reffilter + ' mag']=magrange
+        self.formatters4texptable = {}
+        
+        for grat in gratings:
+            
+            self.formatters4texptable[grat+'_t']=texpformat
+            if saveSNRflag:
+                self.formatters4texptable[grat+'_SN']=SNRformat
+            self.pandeiacfg['configuration']['instrument']['disperser'] = self.Check_grating(grat)
+            self.pandeiacfg['configuration']['instrument']['filter'] = self.set_grating_filter(grat)
+
+            if wave is None:
+                wave = 2
+                wave = self.check_ref_lam(grat,wave)
+                width=.5
+            texps=[]
+            SNRs=[]
+            for mag in magrange:
+                texp_results=self.texp4SNRatmag(reffilter,mag,SNR,lambkg4ETC=lambkg4ETC,
+                                                SNR_tolerance_in_percent=SNR_tolerance_in_percent,
+                                                spec=spec,wave=wave,width=width)
+                texps.append(texp_results[texp_type][0])
+                if saveSNRflag:
+                    SNRs.append(texp_results[texp_type][1])
+                    
+            self.texp.t[grat+'_t']=np.array(texps)
+            if saveSNRflag:
+                self.texp.t[grat+'_SN']=np.array(SNRs)
                 
 
 if __name__ == '__main__':
@@ -569,7 +751,7 @@ if __name__ == '__main__':
     jwst_SNR.verbose=1
     jwst_SNR.set_background4jwst(50,target='EmptyERS')
 
-    #jwst_SNR.Imaging_SNR_table(['F200W'],np.arange(28.0,29.0,0.5),1200)
+    #jwst_SNR.Calculate_SNR_table(['F200W'],np.arange(28.0,29.0,0.5),1200)
     #jwst_SNR.texp4SNRatmag('F200W',28.0,20.0)
     jwst_SNR.Imaging_texp_table(['F200W'],np.arange(28.0,29.0,0.5),10)
     
