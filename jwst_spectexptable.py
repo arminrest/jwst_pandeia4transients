@@ -13,14 +13,14 @@ import pysynphot as S
 import pandas as pd
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(usage="create exposure time table for a given set of filters, mags, and target S/N")
+    parser = argparse.ArgumentParser(usage="create exposure time table for a given spectrum at a selected wavelength, normalisation filter/mags, and target S/N")
     parser.add_argument('SNR', type=float, help=('specify target SNR'))
     parser.add_argument('spec', type=str, help=('input spectrum'))
-    parser.add_argument('lam', type=float, default=[2], nargs='+', help=('reference wavelength in micron'))
-    parser.add_argument('width', type=float, default=[.5],nargs='+', help=('width to average around reference wavelength fo SNR.'))
+    parser.add_argument('lam', type=float, default=2, help=('reference wavelength in micron'))
+    parser.add_argument('width', type=float, default=.1, help=('width to average around reference wavelength fo SNR.'))
     parser.add_argument('-i','--instrument', default='nirspec', choices=['nirspec'], help=('specify instrument (default=%(default)s)'))
     parser.add_argument('--mode', default='fixed_slit', choices=['fixed_slit','ifu'], help=('specify mode. If None, then the default mode for a given instrument is chosen (default=%(default)s)'))
-    parser.add_argument('-g','--grating', default=['prism'],nargs='+', help=('specify nirspec disperser'))
+    parser.add_argument('-g','--grating', default=None,nargs='+', help=('specify nirspec disperser'))
     parser.add_argument('-f','--reffilter', default='F200W', help=('specify normalisation filter'))
     parser.add_argument('-m','--magrange', nargs=3, type=float, default=[24,28,1], help=('specify the magnitude range magmin magmax dm (default=%(default)s)'))
     parser.add_argument('-s','--save', nargs='*',  type=str, default=None, help=('save the table. If no filename specified, then SNR_<exptime>sec.txt is used (default=%(default)s)'))
@@ -35,11 +35,12 @@ if __name__ == '__main__':
     parser.add_argument('--saveSNR', default=False, action='store_true', help=('Save the S/N as well in the table'))
                         
     args = parser.parse_args()
-    spec_file - args.spec
+    print(args)
+    spec_file = args.spec
     if spec_file is None:
         raise(ValueError('Spectrum must be provided'))
     else:
-        spec = pd.read_csv(spec_file)
+        spec = pd.read_csv(spec_file,delimiter='\t')
         if np.nanmedian(spec['wave'].values) < 100:
             waveunits  = 'micron'
         elif np.nanmedian(spec['wave'].values) > 100:
@@ -47,7 +48,7 @@ if __name__ == '__main__':
         spec = S.ArraySpectrum(spec['wave'].values,spec['flux'].values,waveunits=waveunits,
                fluxunits='flam')
     # initialize with instrument and mode
-    jwst_SNR=jwst_SNRclass(instrument=args.instrument,mode=args.mode,grating=args.grating)
+    jwst_SNR=jwst_SNRclass(instrument=args.instrument,mode=args.mode)
     jwst_SNR.verbose=args.verbose
 
     # set the background
@@ -62,9 +63,10 @@ if __name__ == '__main__':
     magrange = np.arange(args.magrange[0],args.magrange[1],args.magrange[2])
 
     # exposure time panda table is in jwst_SNR.texp.t
-    jwst_SNR.Spec_texp_table(arg.grating,arg.reffilter,magrange,args.SNR,
+    jwst_SNR.Spec_texp_table(wave=args.lam,width=args.width,reffilter=args.reffilter,magrange=magrange,
+                                SNR=args.SNR,gratings=args.grating,
                                 SNR_tolerance_in_percent=args.SNR_tolerance_in_percent,
-                                saveSNRflag=args.saveSNR,spec=spec,wave=args.lam,width=args.width)
+                                saveSNRflag=args.saveSNR,spec=spec)
    
     # save the file if wanted
     if not(args.save is None):

@@ -722,12 +722,13 @@ class jwst_SNRclass:
         """
 
         #Make sure filters is a list and not a string
+        print(gratings)
         if gratings is None:
             gratings = self.get_grating_4_ref_lam(wave)
             print(gratings)
         else:
             if isinstance(gratings,str):gratings=[gratings]
-            gratings = self.check_ref_lam(gratings)
+            gratings = self.check_ref_lam(gratings,wave)
 
 
         cols = [reffilter + ' mag']
