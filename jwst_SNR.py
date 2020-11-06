@@ -312,8 +312,10 @@ class jwst_SNRclass:
         if self.instrument != 'nirspec':
             self.pandeiacfg['configuration']['instrument']['filter'] = filt.lower()
             
-
-        self.pandeiacfg['scene'][0]['spectrum']['normalization']['bandpass'] = self.setup_for_norm(filt.lower())
+        if not(filt is None):
+            self.pandeiacfg['scene'][0]['spectrum']['normalization']['bandpass'] = self.setup_for_norm(filt.lower())
+        else:
+            self.pandeiacfg['scene'][0]['spectrum']['normalization']['bandpass'] = None
         self.pandeiacfg['scene'][0]['spectrum']['normalization']['norm_flux'] = mag
         self.pandeiacfg['scene'][0]['spectrum']['normalization']['norm_fluxunit'] = 'abmag'
         if not(spec is None):
