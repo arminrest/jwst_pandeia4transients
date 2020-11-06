@@ -198,18 +198,20 @@ class NIRSpec_SNR(object):
         mode = self.read_mode
         exp = self.exp_time
         if mode == 'nrsrapid':
-            ng = exp / (10.737)
+            ng = (10.737)
         elif mode == 'nrsrapidd6':
-            ng = exp / (75.159)
+            ng = (75.159)
         elif mode == 'nrs':
-            ng = exp / (42.947)
+            ng = (42.947)
         elif mode == 'nrsirs2rapid':
-            ng = exp / (14.589)
+            ng = (14.589)
         elif mode == 'nrsirs2':
-            ng = exp / (72.944)
-        ng = np.floor(ng / (self.nint * self.nexp))
+            ng = (72.944)
+        ng = np.floor(exp / (self.nint * self.nexp * 14.6 * ng))
         if ng <1:
-            warnings.warn('exposure is too short for even one group!')
+            warnings.warn('exposure is too short for even one group!'+
+                        'setting ng = 1') 
+            ng =1 
         self.ngroups = ng
         return
     
@@ -230,7 +232,7 @@ class NIRSpec_SNR(object):
             exp = 14.589
         elif mode == 'nrsirs2':
             exp = 72.944 
-        exp = exp * self.nint * self.nexp * self.ngroups
+        exp = exp * self.nint * self.nexp * self.ngroups * 14.6
 
         self.exp_time = exp
         return
