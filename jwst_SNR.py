@@ -30,9 +30,9 @@ def nJytoAB(F_nJy):
 grating_range = {'g140m':[0.97,1.84],
                  'g235m':[1.66,3.07],
                  'g395m':[2.87,5.10],
-                 'g140h':[0.97,1.82],
-                 'g235h':[1.66,3.05],
-                 'g395h':[2.87,5.14],
+                 #'g140h':[0.97,1.82],
+                 #'g235h':[1.66,3.05],
+                 #'g395h':[2.87,5.14],
                  'prism':[0.60,5.30]}
 
             
@@ -377,8 +377,8 @@ class jwst_SNRclass:
         av_flux = np.nanmedian(flux)
         av_err = np.nanmedian(err)
         snr = np.sqrt(av_elements) * (av_flux/av_err)
-        if np.isnan(av): av = 0
-        return av
+        if np.isnan(snr): snr = 0
+        return snr
 
     def texp4SNRatmag(self,filt,mag,SNR,lambkg4ETC=None,SNR_tolerance_in_percent=10.0,
                         spec=None,**kwargs):
@@ -422,6 +422,7 @@ class jwst_SNRclass:
 
         if self.instrument == 'nirspec':
             grating = self.pandeiacfg['configuration']['instrument']['disperser']
+
             if self.verbose: print('#############################\n#### Filter:%s, mag %f, grating: %s, for S/N=%.f \n#############################' % (filt, mag, grating, SNR))
         else:
             if self.verbose: print('#############################\n#### Filter %s, mag %.2f for S/N=%.f \n#############################' % (filt,mag,SNR))
@@ -722,8 +723,10 @@ class jwst_SNRclass:
 
         Parameters
         ----------
-        filters : list or string
-            Pass (a list of) filter(s) for which to calculate the SNR.
+        wave : float/list
+            Pass wavelengths to sample for the signal to noise.
+        reffilter : string
+            Pass filter for which to normalise the spectrum.
         magrange : list/tuple of magnitudes
             Pass a list of magnitudes for which to calculate the SNR..
         SNR : float 
@@ -732,6 +735,12 @@ class jwst_SNRclass:
             the first array is the wavelength, the second the background. 
             The default is None. If none, then the background data in 
             self.lambkg4ETC is used.
+        spec_av_width : float, optional
+            width in microns to average the spectrum around the central wavelength.
+        av_element : int, optional 
+            number of resolution elements to combine to calculate the SNR
+        gratings : str or list, optional
+            The grating or list of gratings to calculate the SNR with.
         texp_type : string, optional
             'minus', 'plus', or 'best'. The default is 'best'. This is used
             to select which of the exposure times from self.texp4SNRatmag is 
@@ -750,6 +759,8 @@ class jwst_SNRclass:
         SNRformat : string formatter, optional
             String formatter for the SNR columns. The default is None. If None,
             then the default formatter self.SNRformat is used
+        spec : pysynphot spectrum
+            spectrum to calculate the SNR from.
 
         Returns
         -------
@@ -766,28 +777,34 @@ class jwst_SNRclass:
         g = gratings
         if isinstance(wave,float):wave=[wave]
         if isinstance(wave,int):wave=[wave]
+
+        cols = [reffilter + ' mag']
+
+        if SNRformat == None: SNRformat = self.SNRformat
+        if texpformat == None: texpformat = self.texpformat
+
+        self.texp = pdastroclass(columns=cols)
+        self.texp.t[reffilter + ' mag']=magrange
+        self.formatters4texptable = {}
+
         for w in wave:
             if self.instrument == 'nirspec':
+                
                 if g is None:
                     gratings = self.get_grating_4_ref_lam(w)
-                    print(gratings)
                 else:
+                    #gratings = self.check_ref_lam(g,w)
                     if isinstance(g,str):gratings=[g]
-                    gratings = self.check_ref_lam(g,w)
+                    
             elif self.instrument == 'miri':
                 gratings = ['p750l']
-            cols = [reffilter + ' mag']
+            
 
             for col in gratings: cols.append(str(w)+'micron_'+col+'_t')
             if saveSNRflag:
                 for col in gratings: cols.append(str(w)+'micron_'+col+'_SN')
 
-            if SNRformat == None: SNRformat = self.SNRformat
-            if texpformat == None: texpformat = self.texpformat
-
-            self.texp = pdastroclass(columns=cols)
-            self.texp.t[reffilter + ' mag']=magrange
-            self.formatters4texptable = {}
+            
             
             for grat in gratings:
                 
