@@ -40,7 +40,9 @@ class jwst_SNRclass:
     def __init__(self,instrument='nircam',mode=None,ETCjsonfile=None):
         self.verbose = 0
         self.allowed_instruments = ['nircam','nirspec','niriss','miri']
-
+        # book keeping variables
+        self.instrument = instrument
+        self.spectrum = False
         # initialization
         self.initialize_pandeia(instrument,mode=mode,ETCjsonfile=ETCjsonfile)
 
@@ -144,6 +146,7 @@ class jwst_SNRclass:
 
         # if no mode is given, choose the default one.
         if mode is None:
+            print('no modes')
             if instrument=='nircam':
                 mode='sw_imaging'
             elif instrument in ['niriss','miri']:
@@ -167,6 +170,8 @@ class jwst_SNRclass:
                 self.pandeiacfg['configuration']['detector']['subarray'] = 'full'
                 self.pandeiacfg['configuration']['instrument']['disperser'] = self.Check_grating(grating)
                 self.pandeiacfg['configuration']['instrument']['filter'] = self.set_grating_filter(grating)
+            #elif instrument == 'miri':
+            #    self.pandeiacfg['strategy']['method'] = 'ifunodinscene'
         else:
             with open(ETCjsonfile) as f:  # use a json file you have
                  self.pandeiacfg = json.load(f)
@@ -186,7 +191,7 @@ class jwst_SNRclass:
         if instrument is None:
             instrument = self.get_instrument()
             
-        if instrument.lower() in ['niriss','miri']:
+        if (instrument.lower() in ['niriss','miri']) & ~self.spectrum:
             mode = 'imaging'
             aperture = 'imager'
             if instrument.lower() in ['niriss']:
@@ -198,6 +203,9 @@ class jwst_SNRclass:
         elif instrument.lower() == 'nirspec':
             mode = 'fixed_slit'
             aperture = 's200a1'
+        elif (instrument.lower() == 'miri') & self.spectrum:
+            mode = 'lrsslit'
+            aperture = 'lrsslit'
         else:
              raise RuntimeError("instrument %s is not allowed, only nircam, niriss, miri, and nirspec" % (instrument))
            
@@ -232,6 +240,36 @@ class jwst_SNRclass:
         self.lambkg4ETC = self.background4jwst.lambkg4ETC(percentile,**kwargs)
         return(0)
 
+    def setup_for_norm(self,filt):
+
+        sw_imaging = np.array(['f070w','f090w','f115w','f140m','f150w',
+                               'f150w2','f164n+f150w2','f164n+f150w2',
+                              'f182m','f187n','f200w','f210m','f212n'])
+        lw_imaging = np.array(['f250m','f277w','f300m','f322w2','f323n+f322w2',
+                              'f335m','f356w','f360','f405n+f444w','f410m',
+                              'f430m','f444w','f460m','f466n+f444w',
+                              'f470n+f444w','f480m'])
+        miri_imaging = np.array(['f560w','f770w','f1000w','f1130w','f1280w',
+                                 'f1500w','f1800w','f2100w','f2550w'])
+
+        if (filt == sw_imaging).any():
+            i = 'nircam'
+            m = 'sw_imaging'
+        elif (filt == lw_imaging).any():
+            i = 'nircam'
+            m = 'lw_imaging'
+        
+        elif (filt == miri_imaging).any():
+            i = 'miri'
+            m = 'imaging'
+        else:
+            message = 'no such imaging filter'
+            raise(ValueError(message))
+
+        norm_mode = '{},{},{}'.format(i,m,filt)
+        return norm_mode
+
+
     def Calculate_SNR(self, filt, mag, exptime, lambkg4ETC=None,spec=None,**kwargs):
         """
         Parameters
@@ -256,7 +294,7 @@ class jwst_SNRclass:
         used for the calculation.
 
         """
-        if self.instrument == 'nirspec':
+        if self.spectrum:
             grating = self.pandeiacfg['configuration']['instrument']['disperser']
             if self.verbose>2: print('Calculating SNR for filter:%s mag:%f, %f, exptime:%f \n' % (filt, mag, grating, exptime))
         else:
@@ -275,7 +313,7 @@ class jwst_SNRclass:
             self.pandeiacfg['configuration']['instrument']['filter'] = filt.lower()
             
 
-        self.pandeiacfg['scene'][0]['spectrum']['normalization']['bandpass'] = 'nircam,sw_imaging,' + filt.lower()
+        self.pandeiacfg['scene'][0]['spectrum']['normalization']['bandpass'] = self.setup_for_norm(filt.lower())
         self.pandeiacfg['scene'][0]['spectrum']['normalization']['norm_flux'] = mag
         self.pandeiacfg['scene'][0]['spectrum']['normalization']['norm_fluxunit'] = 'abmag'
         if not(spec is None):
@@ -317,7 +355,7 @@ class jwst_SNRclass:
         if self.verbose>1: print('filter:%s mag:%.2f, target exptime:%.1f  ==> SNR=%.2f exptime=%.1f' % (filt, mag, exptime,SNR,total_exposure_time))
         return(SNR,total_exposure_time)
 
-    def Av_spec_SNR(self,wave,width=0):
+    def Av_spec_SNR(self,wave,width=0,av_elements=2):
         #lam, snr = self.ETCresults['1d']['sn']
         lam, flux = self.ETCresults['1d']['extracted_flux']
         err = self.ETCresults['1d']['extracted_noise'][1]
@@ -334,9 +372,11 @@ class jwst_SNRclass:
         flux = flux[ind]
         err = err[ind]
         #snr = snr[ind]
-        snr = np.nansum(flux) / np.sqrt(np.nansum(err**2))
-
-        av = np.nanmean(snr)
+        #snr = np.nansum(flux) / np.sqrt(np.nansum(err**2))
+        #av = np.nanmean(snr)
+        av_flux = np.nanmedian(flux)
+        av_err = np.nanmedian(err)
+        snr = np.sqrt(av_elements) * (av_flux/av_err)
         if np.isnan(av): av = 0
         return av
 
@@ -403,10 +443,10 @@ class jwst_SNRclass:
         if self.verbose>1: print('SNR=%6.2f for starting texp=%6.1f' % (SNR0,texp0))
         if SNR0==0.0 and mag<25:
             texp0=1 # get shortest exposure time
-            (SNR0, texp0) = self.Imaging_SNR(filt,mag,texp0,lambkg4ETC=lambkg4ETC,spec=spec,**kwargs)        
+            (SNR0, texp0) = self.Calculate_SNR(filt,mag,texp0,lambkg4ETC=lambkg4ETC,spec=spec,**kwargs)        
             if self.verbose>1: print('SNR=%6.2f for starting texp=%6.1f' % (SNR0,texp0))
             if SNR0==0.0:
-                print('#############################\n#### Filter %s, mag %.2f is saturated, returning NaNs\n#############################' % filt)
+                #print('#############################\n#### Filter %s, mag %.2f is saturated, returning NaNs\n#############################' % filt)
                 results = {'plus':(None,None),
                            'minus':(None,None),
                            'best':(None,None)}  
@@ -675,7 +715,7 @@ class jwst_SNRclass:
                 #lam = (grating_range[keys[ind]][0] + grating_range[keys[ind]][1]) / 2 
         return gratings
 
-    def Spec_texp_table(self,wave,width, reffilter, magrange, SNR, gratings=None, lambkg4ETC=None,texp_type='best',
+    def Spec_texp_table(self,wave, reffilter, magrange, SNR,spec_av_width=.1, av_elements=2, gratings=None, lambkg4ETC=None,texp_type='best',
                            SNR_tolerance_in_percent=10,saveSNRflag=False,texpformat=None,SNRformat=None,
                            spec=None):
         """
@@ -720,54 +760,58 @@ class jwst_SNRclass:
         self.texp.write('myfilename.txt',formatters=self.formatters4texptable)
 
         """
-
+        self.spectrum=True
         #Make sure filters is a list and not a string
-        print(gratings)
-        if gratings is None:
-            gratings = self.get_grating_4_ref_lam(wave)
-            print(gratings)
-        else:
-            if isinstance(gratings,str):gratings=[gratings]
-            gratings = self.check_ref_lam(gratings,wave)
-
-
-        cols = [reffilter + ' mag']
-        for col in gratings: cols.append(col+'_t')
-        if saveSNRflag:
-            for col in gratings: cols.append(col+'_SN')
-
-        if SNRformat == None: SNRformat = self.SNRformat
-        if texpformat == None: texpformat = self.texpformat
-
-        self.texp = pdastroclass(columns=cols)
-        self.texp.t[reffilter + ' mag']=magrange
-        self.formatters4texptable = {}
         
-        for grat in gratings:
-            
-            self.formatters4texptable[grat+'_t']=texpformat
-            if saveSNRflag:
-                self.formatters4texptable[grat+'_SN']=SNRformat
-            self.pandeiacfg['configuration']['instrument']['disperser'] = self.Check_grating(grat)
-            self.pandeiacfg['configuration']['instrument']['filter'] = self.set_grating_filter(grat)
+        g = gratings
+        if isinstance(wave,float):wave=[wave]
+        if isinstance(wave,int):wave=[wave]
+        for w in wave:
+            if self.instrument == 'nirspec':
+                if g is None:
+                    gratings = self.get_grating_4_ref_lam(w)
+                    print(gratings)
+                else:
+                    if isinstance(g,str):gratings=[g]
+                    gratings = self.check_ref_lam(g,w)
+            elif self.instrument == 'miri':
+                gratings = ['p750l']
+            cols = [reffilter + ' mag']
 
-            if wave is None:
-                wave = 2
-                wave = self.check_ref_lam(grat,wave)
-                width=.5
-            texps=[]
-            SNRs=[]
-            for mag in magrange:
-                texp_results=self.texp4SNRatmag(reffilter,mag,SNR,lambkg4ETC=lambkg4ETC,
-                                                SNR_tolerance_in_percent=SNR_tolerance_in_percent,
-                                                spec=spec,wave=wave,width=width)
-                texps.append(texp_results[texp_type][0])
-                if saveSNRflag:
-                    SNRs.append(texp_results[texp_type][1])
-                    
-            self.texp.t[grat+'_t']=np.array(texps)
+            for col in gratings: cols.append(str(w)+'micron_'+col+'_t')
             if saveSNRflag:
-                self.texp.t[grat+'_SN']=np.array(SNRs)
+                for col in gratings: cols.append(str(w)+'micron_'+col+'_SN')
+
+            if SNRformat == None: SNRformat = self.SNRformat
+            if texpformat == None: texpformat = self.texpformat
+
+            self.texp = pdastroclass(columns=cols)
+            self.texp.t[reffilter + ' mag']=magrange
+            self.formatters4texptable = {}
+            
+            for grat in gratings:
+                
+                self.formatters4texptable[str(w)+'micron_'+grat+'_t']=texpformat
+                if saveSNRflag:
+                    self.formatters4texptable[str(w)+'micron_'+grat+'_SN']=SNRformat
+                if self.instrument == 'nirspec':
+                    self.pandeiacfg['configuration']['instrument']['disperser'] = self.Check_grating(grat)
+                    self.pandeiacfg['configuration']['instrument']['filter'] = self.set_grating_filter(grat)
+
+                
+                texps=[]
+                SNRs=[]
+                for mag in magrange:
+                    texp_results=self.texp4SNRatmag(reffilter,mag,SNR,lambkg4ETC=lambkg4ETC,
+                                                    SNR_tolerance_in_percent=SNR_tolerance_in_percent,
+                                                    spec=spec,wave=w,width=spec_av_width,av_elements=av_elements)
+                    texps.append(texp_results[texp_type][0])
+                    if saveSNRflag:
+                        SNRs.append(texp_results[texp_type][1])
+                        
+                self.texp.t[str(w)+'micron_'+grat+'_t']=np.array(texps)
+                if saveSNRflag:
+                    self.texp.t[str(w)+'micron_'+grat+'_SN']=np.array(SNRs)
                 
 
 if __name__ == '__main__':
