@@ -207,7 +207,10 @@ class NIRSpec_SNR(object):
             ng = (14.589)
         elif mode == 'nrsirs2':
             ng = (72.944)
-        ng = np.floor(exp / (self.nint * self.nexp * 14.6 * ng))
+        ng = np.floor(exp / (self.nint * self.nexp * ng + 58.35 * self.nint))
+        if ng > 100:
+            self.nint += 1
+            ng = np.floor(exp / (self.nint * self.nexp * ng + 58.35 * self.nint))
         if ng <1:
             warnings.warn('exposure is too short for even one group!'+
                         'setting ng = 1') 
@@ -283,7 +286,7 @@ class NIRSpec_SNR(object):
     def Normalise_spec(self):
         imgr_data = self.imgr_data
         imgr_data['scene'][0]['spectrum']["normalization"] = {}
-        imgr_data['scene'][0]['spectrum']["normalization"]["bandpass"]= "nircam,sw_imaging," + self.ref_filt
+        imgr_data['scene'][0]['spectrum']["normalization"]["bandpass"]= "nircam,lw_imaging," + self.ref_filt
         imgr_data['scene'][0]['spectrum']["normalization"]["norm_flux"] = self.mag
         imgr_data['scene'][0]['spectrum']["normalization"]["norm_fluxunit"] =  "abmag"
         imgr_data['scene'][0]['spectrum']["normalization"]["type"] = "jwst"
