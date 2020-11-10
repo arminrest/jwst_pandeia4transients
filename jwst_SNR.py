@@ -318,6 +318,7 @@ class jwst_SNRclass:
             self.pandeiacfg['scene'][0]['spectrum']['normalization']['bandpass'] = None
         self.pandeiacfg['scene'][0]['spectrum']['normalization']['norm_flux'] = mag
         self.pandeiacfg['scene'][0]['spectrum']['normalization']['norm_fluxunit'] = 'abmag'
+        self.pandeiacfg['scene'][0]['spectrum']['normalization']['type'] = 'jwst'
         if not(spec is None):
             print('reference spec')
             # spectrum needs to be 
@@ -376,9 +377,11 @@ class jwst_SNRclass:
         #snr = snr[ind]
         #snr = np.nansum(flux) / np.sqrt(np.nansum(err**2))
         #av = np.nanmean(snr)
+        
         av_flux = np.nanmedian(flux)
         av_err = np.nanmedian(err)
         snr = np.sqrt(av_elements) * (av_flux/av_err)
+        
         if np.isnan(snr): snr = 0
         return snr
 
