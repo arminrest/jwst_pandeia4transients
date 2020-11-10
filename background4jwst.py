@@ -48,6 +48,9 @@ class background4jwstclass(pdastroclass):
             "NEP-TDF":('17:22:47.896','+65:49:21.54'), # North Ecliptic Pole, Time domain Field
             "NEP-DF":('17:40:08.00','+69:00:08.00'), # North Ecliptic Pole, Dark field (Spitzer/IRAC)
             "CDF-S":('03:32:28.0','−27:48:30') # Chandra Deep Field South
+            "EDFN":('17:58:55.9','+66:01:03.7') # Euclid Deep Field North
+            "EDFS":('04:04:57.84','48:25:22.8') # Euclid Deep Field South
+            "EDFF":('03:31:43.6','-28:05:18.6') # Euclid Fornax Deep Field. Includes CDF-S 
             }
         
         self.set_position_by_target('EmptyERS')
