@@ -231,13 +231,13 @@ class lcclass(pdastroclass):
             lcbasename=re.sub('\.txt|\.dat','',lcbasename)
             print(self.lcfilename,lcbasename)
 
-            if isinstance(refmag,list):
+            if not(refmag is None):
                 filename = '%s_%s_phase%.1f_%s_%.1f_SNR%.0f.txt' % (lcbasename,instrument,
-                                                                            refmag[2],refmag[1],refmag[0],
-                                                                            SNR)
-            if isinstance(distance,float):
+                                                                    refmag[2],refmag[1],refmag[0],
+                                                                    SNR)
+            elif not(distance is None):
                 filename = '%s_%s_%.0fMpc_SNR%.0f.txt' % (lcbasename,instrument,distance,SNR)
-            elif isinstance(redshift,float):
+            elif not(redshift is None):
                 filename = '%s_%s_%.2fz_SNR%.0f.txt' % (lcbasename,instrument,redshift,SNR)
         else:
             filename = save[0]

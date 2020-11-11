@@ -166,22 +166,13 @@ if __name__ == '__main__':
                                 lam4percentile=args.bkg_lam4percentile,
                                 target=args.bkg_target,targetpos=args.bkg_targetposition)
         
-    print(args.refmag)
-    filename = lc2texp.lc.outputfilename(save=args.save,SNR=args.SNR,
-                                             refmag=args.refmag,
-                                             distance=args.distance,
-                                             redshift=args.redshift,
-                                             instrument=lc2texp.instrument)
-    print(filename)
-    sys.exit(0)
-
-
     
     # get the splined normalized mag table
-    if isinstance(args.refmag,list):
+    if not(args.refmag is None):
         lc2texp.texp = lc2texp.lc.get_normalized_lc(args.refmag[2],args.refmag[1],args.refmag[0],
                                                     phaserange,filters,maxmag=30.0)
-    elif isinstance(args.distance,float) | isinstance(args.redshift,float):
+    elif not(args.distance is None) or not(args.distance is None):
+    #elif isinstance(args.distance,float) or isinstance(args.redshift,float):
         lc2texp.texp = lc2texp.lc.distance_scalling(phaserange,filters,args.distance,
                                                     args.redshift,maxmag=30.0)
     else:
@@ -201,8 +192,6 @@ if __name__ == '__main__':
                                              distance=args.distance,
                                              redshift=args.redshift,
                                              instrument=lc2texp.instrument)
-        print(filename)
-        sys.exit(0)
 
         # get the filename
         """
