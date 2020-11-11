@@ -26,6 +26,7 @@ class lcclass(pdastroclass):
         self.lcrootdir = None
         self.lcmodel = None
         self.modeldir = None
+        self.lcfilename = None
         self.verbose=0
         
         self.NIRCamfilters = ['F070W','F090W','F115W','F150W','F150W2','F200W','F277W','F322W2','F356W','F444W']
@@ -111,6 +112,8 @@ class lcclass(pdastroclass):
     def loadmodellc(self,lcfilename,jwstfilter2caps=True,phasecolnum=0):
         if self.verbose: print('Loading lc: %s' % lcfilename)
         self.load_spacesep(lcfilename,comment='#')
+        self.lcfilename = lcfilename
+    
 
         #rename the first column
         self.t = self.t.rename(columns={self.t.columns[phasecolnum]:self.phasecolname})
@@ -199,6 +202,47 @@ class lcclass(pdastroclass):
             
         lcnorm.write()
         return(lcnorm)
+    
+    def outputfilename(self,save,SNR=None,refmag=None,distance=None,redshift=None,instrument=''):
+        """
+        get the output filename, based on the optional parameters
+        Parameters
+        ----------
+        save : TYPE
+            DESCRIPTION.
+        SNR : TYPE, optional
+            DESCRIPTION. The default is None.
+        refmag : TYPE, optional
+            DESCRIPTION. The default is None.
+        distance : TYPE, optional
+            DESCRIPTION. The default is None.
+        redshift : TYPE, optional
+            DESCRIPTION. The default is None.
+        instrument : TYPE, optional
+            DESCRIPTION. The default is ''.
+
+        Returns
+        -------
+        filename.
+
+        """
+        if save ==[]:
+            lcbasename=os.path.basename(self.lcfilename)
+            lcbasename=re.sub('\.txt|\.dat','',lcbasename)
+            print(self.lcfilename,lcbasename)
+
+            if isinstance(refmag,list):
+                filename = '%s_%s_phase%.1f_%s_%.1f_SNR%.0f.txt' % (lcbasename,instrument,
+                                                                            refmag[2],refmag[1],refmag[0],
+                                                                            SNR)
+            if isinstance(distance,float):
+                filename = '%s_%s_%.0fMpc_SNR%.0f.txt' % (lcbasename,instrument,distance,SNR)
+            elif isinstance(redshift,float):
+                filename = '%s_%s_%.2fz_SNR%.0f.txt' % (lcbasename,instrument,redshift,SNR)
+        else:
+            filename = save[0]
+        return(filename)
+        
         
 if __name__ == '__main__':
     lc=lcclass()

@@ -6,7 +6,7 @@ Created on Wed Oct 28 16:15:53 2020
 @author: arest
 """
 
-import argparse,sys
+import argparse,sys,os,re
 import numpy as np
 from jwst_SNR import jwst_SNRclass
 from lc import lcclass
@@ -153,6 +153,7 @@ if __name__ == '__main__':
     lcfilename = lc2texp.lc.findlcfilename(args.lcrootdir,args.lcmodel,args.lcparams)
     lc2texp.lc.loadmodellc(lcfilename)
     lc2texp.lc.write()
+    
 
     filters = args.filters
     phaserange = np.arange(args.phasemin,args.phasemax,args.phasestep)
@@ -165,6 +166,16 @@ if __name__ == '__main__':
                                 lam4percentile=args.bkg_lam4percentile,
                                 target=args.bkg_target,targetpos=args.bkg_targetposition)
         
+    print(args.refmag)
+    filename = lc2texp.lc.outputfilename(save=args.save,SNR=args.SNR,
+                                             refmag=args.refmag,
+                                             distance=args.distance,
+                                             redshift=args.redshift,
+                                             instrument=lc2texp.instrument)
+    print(filename)
+    sys.exit(0)
+
+
     
     # get the splined normalized mag table
     if isinstance(args.refmag,list):
@@ -185,9 +196,22 @@ if __name__ == '__main__':
     if not(args.save is None):
         # if verbose, also write it to screen
         if lc2texp.verbose: lc2texp.texp.write(formatters=lc2texp.formatters4texptable)
+        filename = lc2texp.lc.outputfilename(save=args.save,SNR=args.SNR,
+                                             refmag=args.refmag,
+                                             distance=args.distance,
+                                             redshift=args.redshift,
+                                             instrument=lc2texp.instrument)
+        print(filename)
+        sys.exit(0)
 
         # get the filename
+        """
         if args.save ==[]:
+            lcbasename=os.path.basename(lcfilename)
+            lcbasename=re.sub('\.txt|\.dat','',lcbasename)
+            print(lcfilename,lcbasename)
+            sys.exit(0)
+
             if isinstance(args.refmag,list):
                 filename = 'lc2texp_%s_phase%.1f_%s_%.1f_SNR%.0f.txt' % (lc2texp.instrument,
                                                                          args.refmag[2],args.refmag[1],args.refmag[0],
@@ -198,6 +222,7 @@ if __name__ == '__main__':
                 filename = 'lc2texp_%s_%fz_SNR%.0f.txt' % (lc2texp.instrument,args.redshift,args.SNR)
         else:
             filename = args.save[0]
+            """
 
         # save the table
         print('Saving table into %s' % filename)
