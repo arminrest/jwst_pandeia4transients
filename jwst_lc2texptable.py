@@ -117,9 +117,9 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(usage="create exposure time table for a given set of filters, mags, and target S/N")
     parser.add_argument('SNR', type=float, help=('specify target SNR'))
-    #parser.add_argument("reftime", type=float, help=("time difference between KN and to GW discovery in days"))
-    #parser.add_argument("reffilter",  help=("reference filter"))
-    #parser.add_argument("refmag", type=float, help=("reference mag in reference filter"))
+    #parser.add_argument("--refmag", nargs=3, help=("reference mag, reference filter, reference time"))
+    #parser.add_argument("--distance", default=None, type=float, help=("distance to source in Mpc"))
+    #parser.add_argument("--redshift", default=None, type=float, help=("redshift to source"))
     parser.add_argument('-i','--instrument', default='nircam', choices=['nircam','miri','niriss'], help=('specify instrument (default=%(default)s)'))
     parser.add_argument('--mode', default=None, choices=['imaging','sw_imaging','lw_imaging'], help=('specify mode. If None, then the default mode for a given instrument is chosen (default=%(default)s)'))
     parser.add_argument('-f','--filters', default=['F200W'],nargs='+', help=('specify filters'))
@@ -167,8 +167,14 @@ if __name__ == '__main__':
         
     
     # get the splined normalized mag table
-    lc2texp.texp = lc2texp.lc.get_normalized_lc(args.reftime,args.reffilter,args.refmag,
-                                                phaserange,filters,maxmag=30.0)
+    if isinstance(args.refmag,list):
+        lc2texp.texp = lc2texp.lc.get_normalized_lc(args.refmag[2],args.refmag[1],args.refmag[0],
+                                                    phaserange,filters,maxmag=30.0)
+    elif isinstance(args.distance,float) | isinstance(args.redshift,float):
+        lc2texp.texp = lc2texp.lc.distance_scalling(phaserange,filters,args.distance,
+                                                    args.redshift,maxmag=30.0)
+    else:
+        raise ValueError('Either a distance or reference magnitude must be specified!')
 
     # exposure time panda table is in lc2texp.texp.t
     lc2texp.lc2texp_table(filters,args.SNR,
@@ -182,9 +188,14 @@ if __name__ == '__main__':
 
         # get the filename
         if args.save ==[]:
-            filename = 'lc2texp_%s_phase%.1f_%s_%.1f_SNR%.0f.txt' % (lc2texp.instrument,
-                                                                     args.reftime,args.reffilter,args.refmag,
+            if isinstance(args.reffilter,str):
+                filename = 'lc2texp_%s_phase%.1f_%s_%.1f_SNR%.0f.txt' % (lc2texp.instrument,
+                                                                     args.refmag[2],args.refmag[1],args.refmag[0],
                                                                      args.SNR)
+            if isinstance(args.distance,float):
+                filename = 'lc2texp_%s_%fMpc_SNR%.0f.txt' % (lc2texp.instrument,args.distance,args.SNR)
+            elif isinstance(args.redshift,float):
+                filename = 'lc2texp_%s_%fz_SNR%.0f.txt' % (lc2texp.instrument,args.redshift,args.SNR)
         else:
             filename = args.save[0]
 

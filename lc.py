@@ -16,6 +16,9 @@ import pandas as pd
 from pdastro import pdastroclass
 import io
 import argparse
+from astropy.cosmology import WMAP9 as cosmo 
+from astropy.coordinates import Distance
+from astropy import units as u
 
 class lcclass(pdastroclass):
     def __init__(self):
@@ -31,6 +34,7 @@ class lcclass(pdastroclass):
         # subdirs for the different models. Makes it easier
         self.subdirs4models = {}
         self.subdirs4models['metzger']='metzger_20201007'
+        self.subdirs4models['kilpatrick'] = 'kilpatrick_20201110'
         
         self.imaging_exptime = pdastroclass()
 
@@ -52,9 +56,9 @@ class lcclass(pdastroclass):
         if 'LC_DATA' in os.environ:
             lcrootdir = os.environ['LC_DATA']
         
-        parser.add_argument("reftime", type=float, help=("time difference between KN and to GW discovery in days"))
-        parser.add_argument("reffilter",  help=("reference filter"))
-        parser.add_argument("refmag", type=float, help=("reference mag in reference filter"))
+        parser.add_argument("--refmag", nargs=3, help=("reference mag, reference filter, reference time"))
+        parser.add_argument("--distance", default=None, type=float, help=("distance to source in Mpc"))
+        parser.add_argument("--redshift", default=None, type=float, help=("redshift to source"))
                             
         parser.add_argument('-v','--verbose', default=0, action='count')
         parser.add_argument('--lcrootdir',  type=str, default=lcrootdir, help=('specify the rootdir for the light curves (default=%(default)s)'))
@@ -74,14 +78,29 @@ class lcclass(pdastroclass):
         if self.verbose>1: print('lc dir: %s' % lcdir)
         return(lcdir)
         
-    def findlcfilename(self,lcrootdir,lcmodel,lcparams):
+    def findlcfilename(self,lcrootdir,lcmodel,lcparams=None):
         lcdir = self.getlcdir(lcrootdir,lcmodel)
         if lcmodel == 'metzger':
+            if lcparams is None:
+                raise ValueError('lcparams must be specified for matzger models')
             if len(lcparams)!=3: raise RuntimeError("for metzger models: lc params should have 3 entries: vej, mej, and Ye")
             (mej, vej, Ye)=lcparams
             filename = '%s/Metzger_%.6f_%.6f_%.6f.dat' % (lcdir,float(mej),float(vej),float(Ye))
             self.phasecolname = 'time'
             if self.verbose>1: print('lc filename: %s' % filename)
+        elif lcmodel == 'kilpatrick':
+            if lcparams is None:
+                raise ValueError('the model name must be specified for kilpatrick')
+            else:
+                allowed = np.array(['blue_m0.040.dat','gw170817_boosted.dat','gw170817.dat',
+                                            'red_m0.030.dat','red_m0.050.dat'])
+                if (lcparams!=allowed).all():
+                    m = ('Model {} does not exist, please choose from\n'.format(lcparams)
+                        + '{}'.format(allowed))
+                    raise RuntimeError(m)
+
+            filename = lcdir + '/' + lcparams[0]
+            self.phasecolname = 'time'
         else:
             raise RuntimeError('lcmodel %s not yet implemented, cannot find filename' % lcmodel)
         return(filename)
@@ -94,7 +113,7 @@ class lcclass(pdastroclass):
         if jwstfilter2caps:
             namesMapping={}
             for col in self.t.columns:
-                print(col)
+                print('cols',col)
                 if re.search('^f\d+',col):
                     namesMapping[col]=col.upper()
             if len(namesMapping)>0:
@@ -128,6 +147,37 @@ class lcclass(pdastroclass):
             
         lcnorm.write()
         return(lcnorm)
+
+    def distance_scalling(self,phaserange,filters,distance=None,redshift=None,maxmag=None):
+        if not(distance is None) and not(redshift is None):
+            print('Both distance and redshift set, defaulting to redshift.')
+            distance = None
+        if not(distance is None):
+            distance = distance * 1e6 # convert to pc
+        elif not(redshift is None):
+            distance = cosmo.luminosity_distance(redshift).to(u.pc)
+        else:
+            raise ValueError('either distance or redshift must be specified')
+        modulus = 5*np.log10(distance/10)
+
+        cols=[self.phasecolname]
+        cols.extend(filters)
+        lcnorm = pdastroclass(columns=cols)
+        lcnorm.t[self.phasecolname]=phaserange
+
+        #Make sure filters is a list and not a string
+        if isinstance(filters,str):filters=[filters]
+
+        for filt in filters:
+            self.initspline(self.phasecolname,filt)
+            mags = [self.getspline(phase,filt)+modulus for phase in phaserange]
+            lcnorm.t[filt]=mags
+        if not (maxmag is None):
+            for filt in filters:
+                lcnorm.t.loc[lcnorm.ix_inrange(filt,maxmag),filt]=np.nan
+            
+        lcnorm.write()
+        return(lcnorm)
         
 if __name__ == '__main__':
     lc=lcclass()
@@ -136,6 +186,7 @@ if __name__ == '__main__':
 
     lc.verbose=args.verbose
     filename = lc.findlcfilename(args.lcrootdir,args.lcmodel,args.lcparams)
+
     lc.loadmodellc(filename)
     
     indices = lc.ix_remove_null(colnames=['time','f070w'])
