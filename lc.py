@@ -76,6 +76,7 @@ class lcclass(pdastroclass):
             lcsubdir = lcmodel
         lcdir="%s/%s" % (lcrootdir,lcsubdir)
         if self.verbose>1: print('lc dir: %s' % lcdir)
+        
         return(lcdir)
         
     def findlcfilename(self,lcrootdir,lcmodel,lcparams=None):
@@ -86,7 +87,7 @@ class lcclass(pdastroclass):
             if len(lcparams)!=3: raise RuntimeError("for metzger models: lc params should have 3 entries: vej, mej, and Ye")
             (mej, vej, Ye)=lcparams
             filename = '%s/Metzger_%.6f_%.6f_%.6f.dat' % (lcdir,float(mej),float(vej),float(Ye))
-            self.phasecolname = 'time'
+            #self.phasecolname = 'time'
             if self.verbose>1: print('lc filename: %s' % filename)
         elif lcmodel == 'kilpatrick':
             if lcparams is None:
@@ -100,14 +101,34 @@ class lcclass(pdastroclass):
                     raise RuntimeError(m)
 
             filename = lcdir + '/' + lcparams[0]
-            self.phasecolname = 'time'
+            #self.phasecolname = 'rest_time'
         else:
             raise RuntimeError('lcmodel %s not yet implemented, cannot find filename' % lcmodel)
+        self.lcmodel = lcmodel
+        self.lcrootdir = lcrootdir
         return(filename)
     
-    def loadmodellc(self,lcfilename,jwstfilter2caps=True):
+    def loadmodellc(self,lcfilename,jwstfilter2caps=True,phasecolnum=0):
         if self.verbose: print('Loading lc: %s' % lcfilename)
         self.load_spacesep(lcfilename,comment='#')
+
+        #rename the first column
+        self.t = self.t.rename(columns={self.t.columns[phasecolnum]:self.phasecolname})
+
+        if self.lcmodel == 'kilpatrick':
+            namesMapping={}
+            for col in self.t.columns:
+                #print('cols',col)
+                newcol = re.sub('miri_|nircam_','',col)
+                newcol = re.sub('^f0','f',newcol)
+
+                if col != newcol:
+                    namesMapping[col]=newcol
+                
+            if len(namesMapping)>0:
+                print(namesMapping)
+                self.t = self.t.rename(columns=namesMapping)
+       
 
         # rename JWST filters to capital letters
         if jwstfilter2caps:

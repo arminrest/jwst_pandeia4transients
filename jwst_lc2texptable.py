@@ -188,10 +188,10 @@ if __name__ == '__main__':
 
         # get the filename
         if args.save ==[]:
-            if isinstance(args.reffilter,str):
+            if isinstance(args.refmag,list):
                 filename = 'lc2texp_%s_phase%.1f_%s_%.1f_SNR%.0f.txt' % (lc2texp.instrument,
-                                                                     args.refmag[2],args.refmag[1],args.refmag[0],
-                                                                     args.SNR)
+                                                                         args.refmag[2],args.refmag[1],args.refmag[0],
+                                                                         args.SNR)
             if isinstance(args.distance,float):
                 filename = 'lc2texp_%s_%fMpc_SNR%.0f.txt' % (lc2texp.instrument,args.distance,args.SNR)
             elif isinstance(args.redshift,float):

@@ -16,4 +16,4 @@ export PATH="${KN_JWST_SOURCEDIR}:${PATH}:."
 export PS1="\u@\h(KN,jwst)% "
 
 alias cdsrc='cd $TOOLS_PANDEIA_SOURCEDIR'
-alias cddata='cd $KN_JWST_DATA'
+alias cddata='cd $LC_DATA'
