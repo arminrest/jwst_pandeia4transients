@@ -46,7 +46,7 @@ if __name__ == '__main__':
     # SNR panda table is in jwst_SNR.SNR.t
     # exptime_used is the exposure time corresponding to the 
     # readout pattern used (which can be different to args.exptime)
-    exptime_used=jwst_SNR.Imaging_SNR_table(filters,magrange,args.exptime)
+    exptime_used=jwst_SNR.Calculate_SNR_table(filters,magrange,args.exptime)
     print('exposure time used: %.1f (target exposure time was %.1f)' % (exptime_used,args.exptime))
     
     # save the file if wanted
