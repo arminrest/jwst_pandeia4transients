@@ -107,41 +107,44 @@ Readout  NGROUP  NINT   tint  NEXP    texp
 """
 
 pattern2exptime['nirspec'] ="""
- Readout    NGROUP  NINT    tint    NEXP    texp
-nrsirs2rapid    4   1   58.4    4   291.8
-nrsirs2rapid    8   1   116.7   4   525.2
-nrsirs2rapid    12  1   175.1   4   758.6
-nrsirs2rapid    16  1   233.4   4   992.0
-nrsirs2rapid    20  1   291.8   4   1225.5
-nrsirs2rapid    24  1   350.1   4   1458.9
-nrsirs2rapid    28  1   408.5   4   1692.3
-nrsirs2rapid    32  1   466.8   4   1925.7
-nrsirs2rapid    36  1   525.2   4   2159.2
-nrsirs2rapid    40  1   583.6   4   2392.6
-nrsirs2rapid    44  1   641.9   4   2626.0
-nrsirs2rapid    48  1   700.3   4   2859.4
-nrsirs2rapid    52  1   758.6   4   3092.9
-nrsirs2rapid    56  1   817.0   4   3326.3
-nrsirs2rapid    60  1   875.3   4   3559.7
-nrsirs2rapid    64  1   933.7   4   3793.1
-nrsirs2rapid    68  1   992.1   4   4026.6
-nrsirs2rapid    72  1   1050.4  4   4260.0
-nrsirs2rapid    76  1   1108.8  4   4493.4
-nrsirs2rapid    80  1   1167.1  4   4726.8
-nrsirs2rapid    84  1   1225.5  4   4960.3
-nrsirs2rapid    88  1   1283.8  4   5193.7
-nrsirs2rapid    92  1   1342.2  4   5427.1
-nrsirs2rapid    96  1   1400.5  4   5660.5
-nrsirs2rapid    100 1   1458.9  4   5894.0
-nrsirs2rapid    52  2   758.6   4   6185.7
-nrsirs2rapid    56  2   817.0   4   6652.6
-nrsirs2rapid    60  2   875.3   4   7119.4
-nrsirs2rapid    64  2   933.7   4   7586.3
-nrsirs2rapid    68  2   992.1   4   8053.1
-nrsirs2rapid    72  2   1050.4  4   8520.0
-nrsirs2rapid    76  2   1108.8  4   8986.8
-nrsirs2rapid    80  2   1167.1  4   9453.7
-nrsirs2rapid    84  2   1225.5  4   9920.5
+Readout       NGROUP  NINT     tint    NEXP     texp
+nrsirs2rapid       4     1      43.7      2    145.9
+nrsirs2rapid       4     1      58.4      3    218.8
+nrsirs2rapid       8     1     116.7      3    393.9
+nrsirs2rapid      12     1     175.1      3    569.0
+nrsirs2rapid      16     1     233.4      3    744.0
+nrsirs2rapid      20     1     291.8      3    919.1
+nrsirs2rapid      24     1     350.1      3   1094.2
+nrsirs2rapid      28     1     408.5      3   1269.2
+nrsirs2rapid      32     1     466.8      3   1444.3
+nrsirs2rapid      36     1     525.2      3   1619.4
+nrsirs2rapid      40     1     583.6      3   1794.4
+nrsirs2rapid      44     1     641.9      3   1969.5
+nrsirs2rapid      48     1     700.3      3   2144.6
+nrsirs2rapid      52     1     758.6      3   2319.6
+nrsirs2rapid      56     1     817.0      3   2494.7
+nrsirs2rapid      60     1     875.3      3   2669.8
+nrsirs2rapid      64     1     933.7      3   2844.8
+nrsirs2rapid      68     1     992.1      3   3019.9
+nrsirs2rapid      72     1    1050.4      3   3195.0
+nrsirs2rapid      76     1    1108.8      3   3370.0
+nrsirs2rapid      80     1    1167.1      3   3545.1
+nrsirs2rapid      84     1    1225.5      3   3720.2
+nrsirs2rapid      88     1    1283.8      3   3895.2
+nrsirs2rapid      48     2     700.3      3   4289.1
+nrsirs2rapid      52     2     758.6      3   4639.3
+nrsirs2rapid      56     2     817.0      3   4989.4
+nrsirs2rapid      60     2     875.3      3   5339.5
+nrsirs2rapid      64     2     933.7      3   5689.7
+nrsirs2rapid      68     2     992.1      3   6039.8
+nrsirs2rapid      72     2    1050.4      3   6389.9
+nrsirs2rapid      76     2    1108.8      3   6740.1
+nrsirs2rapid      80     2    1167.1      3   7090.2
+nrsirs2rapid      84     2    1225.5      3   7440.3
+nrsirs2rapid      88     2    1283.8      3   7790.5
+nrsirs2rapid      64     3     933.7      3   8534.5
+nrsirs2rapid      68     3     992.1      3   9059.7
+nrsirs2rapid      72     3    1050.4      3   9584.9
 """
 class readoutpatternclass(pdastroclass):
     def __init__(self,instrument):
@@ -216,7 +219,7 @@ class readoutpatternclass(pdastroclass):
                            filename=None,
                            # https://jwst-docs.stsci.edu/near-infrared-spectrograph/nirspec-observing-strategies/nirspec-detector-recommended-strategies#NIRSpecDetectorRecommendedStrategies-groups
                            # recommended, but not required is min=40 and max = 360 groups
-                           Ng_min=4,Ng_max=100, 
+                           Ng_min=3,Ng_max=90, 
                            Ng_absmin=10,
                            # 4 point dither desired
                            Nexp_max=4,
@@ -316,7 +319,12 @@ class readoutpatternclass(pdastroclass):
             # If it's more than self.MIRI_max_Nexp exposures, stick with self.MIRI_max_Nexp
             if Nexp>Nexp_max:
                 Nexp = Nexp_max
-               
+             
+            if self.instrument.lower() == 'nirspec':
+                # for nodding, only exposures of 2, 3, and 5 are valid.
+                valid = np.array([2,3,5])
+                ind = np.argmin(abs(valid-Nexp))
+                Nexp = valid[ind]
             # get the number of groups per integration
             Ngroups = int(Ngroups_tot/(Nint*Nexp))
 
