@@ -123,7 +123,9 @@ class lcclass(pdastroclass):
             for col in self.t.columns:
                 #print('cols',col)
                 newcol = re.sub('miri_|nircam_','',col)
-                newcol = re.sub('^f0','f',newcol)
+                # only substitute the leading 0 for columns above 1 micron!
+                if re.search('^f0\d\d\dw',newcol):
+                    newcol = re.sub('^f0','f',newcol)
 
                 if col != newcol:
                     namesMapping[col]=newcol
